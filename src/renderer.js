@@ -274,22 +274,22 @@ async function beginRecording(source = "button") {
     elements.timer.textContent = "00:00";
     timerInterval = setInterval(() => {
       elements.timer.textContent = formatTime((Date.now() - startedAt) / 1000);
-      if (triggerSource === "shortcut") {
-        const instruction = settings.shortcutMode === "hold" ? "Escuchando. Suelta el atajo para convertir." : "Escuchando. Presiona el atajo para convertir.";
-        updateOverlay("recording", instruction, elements.timer.textContent);
-      }
+      const instruction = triggerSource === "shortcut"
+        ? (settings.shortcutMode === "hold" ? "Escuchando. Suelta el atajo para convertir." : "Escuchando. Presiona el atajo para convertir.")
+        : "Escuchando. Haz clic para convertir.";
+      updateOverlay("recording", instruction, elements.timer.textContent);
     }, 250);
     setStatus("recording", settings.shortcutMode === "hold" ? "Habla con naturalidad. Suelta el atajo para convertir." : "Habla con naturalidad. Presiona de nuevo para convertir.");
-    if (triggerSource === "shortcut") {
-      const instruction = settings.shortcutMode === "hold" ? "Escuchando. Suelta el atajo para convertir." : "Escuchando. Presiona el atajo para convertir.";
-      updateOverlay("recording", instruction, "00:00");
-    }
+    const instruction = triggerSource === "shortcut"
+      ? (settings.shortcutMode === "hold" ? "Escuchando. Suelta el atajo para convertir." : "Escuchando. Presiona el atajo para convertir.")
+      : "Escuchando. Haz clic para convertir.";
+    updateOverlay("recording", instruction, "00:00");
   } catch (error) {
     console.error(error);
     await releaseAudioCapture();
     setStatus("idle", "No pudimos acceder al micrófono.");
     showToast(`Micrófono no disponible: ${error.message || error.name}`);
-    if (source === "shortcut") finishOverlay("error", "No pudimos acceder al micrófono.");
+    finishOverlay("error", "No pudimos acceder al micrófono.");
   }
 }
 
@@ -325,12 +325,12 @@ function cleanText(text) {
 async function processAudio(audio, source = "button") {
   if (!audio) {
     showToast("Todavía no hay una grabación para reprocesar.");
-    if (source === "shortcut") finishOverlay("error", "Todavía no hay una grabación para reprocesar.");
+    finishOverlay("error", "Todavía no hay una grabación para reprocesar.");
     return;
   }
   processing = true;
   setStatus("processing", "Procesando localmente. Tu audio no sale de este equipo.");
-  if (source === "shortcut") updateOverlay("processing", "Convirtiendo tu voz en texto.", "LOCAL");
+  updateOverlay("processing", "Convirtiendo tu voz en texto.", "LOCAL");
   try {
     elements.modelBadge.classList.add("loading");
     elements.modelBadge.classList.remove("error");
@@ -346,19 +346,17 @@ async function processAudio(audio, source = "button") {
     addHistory(text);
     if (result.metrics) renderPerformance(result.metrics);
     const delivery = await deliverText(text, source);
-    if (source === "shortcut") {
-      finishOverlay(
-        "success",
-        delivery.pasted ? "Texto pegado. Continúa escribiendo." : "Transcripción copiada al portapapeles."
-      );
-    }
+    finishOverlay(
+      "success",
+      delivery.pasted ? "Texto pegado. Continúa escribiendo." : "Transcripción copiada al portapapeles."
+    );
   } catch (error) {
     console.error(error);
     elements.modelBadge.classList.remove("loading");
     elements.modelBadge.classList.add("error");
     elements.modelBadge.innerHTML = "<span></span>Motor no disponible";
     showToast(`No fue posible transcribir: ${error.message || error}`);
-    if (source === "shortcut") finishOverlay("error", "No fue posible completar la transcripción.");
+    finishOverlay("error", "No fue posible completar la transcripción.");
   } finally {
     processing = false;
     setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");
@@ -383,7 +381,7 @@ async function finishRecording() {
   } catch (error) {
     processing = false;
     setStatus("idle", error.message);
-    if (triggerSource === "shortcut") finishOverlay("error", "No pudimos procesar la grabación.");
+    finishOverlay("error", "No pudimos procesar la grabación.");
     return;
   } finally {
     await releaseAudioCapture();
@@ -392,13 +390,13 @@ async function finishRecording() {
   if (lastAudio.length < 12000) {
     processing = false;
     setStatus("idle", "La grabación fue demasiado corta. Intenta de nuevo.");
-    if (triggerSource === "shortcut") finishOverlay("error", "La grabación fue demasiado corta.");
+    finishOverlay("error", "La grabación fue demasiado corta.");
     return;
   }
   if (peak < 0.002) {
     processing = false;
     setStatus("idle", "No detectamos voz. Revisa el micrófono seleccionado.");
-    if (triggerSource === "shortcut") finishOverlay("error", "No detectamos voz. Revisa el micrófono.");
+    finishOverlay("error", "No detectamos voz. Revisa el micrófono.");
     return;
   }
   processing = false;

@@ -3,15 +3,22 @@ name: Signed Windows Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-sign-verify:
+    name: Sign Windows x64 (${{ matrix.flavor }})
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - Legacy
+          - AVX2
     env:
       TESTING_REMOTELY: "true"
-      SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
-      SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
-      SIGNING_TIMESTAMP_URL: http://timestamp.digicert.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,15 +26,44 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run test:production
-      - run: npm run test:models
-      - run: npm run release:verify-acceptance
-      - run: npm run release:signed
+
+      - name: Verify signing secrets
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_PFX_BASE64)) {
+            throw "Missing GitHub secret: SIGNING_PFX_BASE64"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_PFX_PASSWORD)) {
+            throw "Missing GitHub secret: SIGNING_PFX_PASSWORD"
+          }
+
+      - name: Run release tests
+        run: |
+          npm test
+          npm run test:production
+          npm run test:models
+          npm run release:verify-acceptance
+
+      - name: Build, sign, and verify ${{ matrix.flavor }}
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+          SIGNING_TIMESTAMP_URL: http://timestamp.digicert.com
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1 -Flavor "${{ matrix.flavor }}"
+
+      - name: Verify Authenticode independently
+        shell: pwsh
+        run: npm run release:verify-signature
+
       - uses: actions/upload-artifact@v4
         with:
-          name: nextstepai-voice-windows-signed
+          name: nextstepai-voice-${{ matrix.flavor }}-windows-x64-signed
+          if-no-files-found: error
           path: |
-            release/NextStepAI-Voice-Setup-*.exe
-            release/NextStepAI-Voice-Setup-*.exe.blockmap
+            release/NextStepAI-Voice-Setup-*-${{ matrix.flavor }}-x64.exe
+            release/NextStepAI-Voice-Setup-*-${{ matrix.flavor }}-x64.exe.blockmap
             release/latest.yml

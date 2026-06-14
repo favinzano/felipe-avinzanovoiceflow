@@ -6,6 +6,11 @@ NextStepAI Voice usa firma Authenticode con un certificado de firma de codigo `.
 
 El certificado y su contrasena no deben almacenarse dentro del repositorio.
 
+Para beta testers externos se requiere un certificado de firma de codigo
+emitido por una autoridad publica confiable o un servicio administrado de firma
+para Windows. No distribuyas una CA autofirmada ni solicites a testers que
+instalen certificados raiz privados.
+
 Para una compilacion local:
 
 - `SIGNING_PFX_PATH`: ruta absoluta al certificado `.pfx`.
@@ -16,6 +21,16 @@ Para GitHub Actions:
 
 - `SIGNING_PFX_BASE64`: secreto que contiene el `.pfx` codificado en Base64.
 - `SIGNING_PFX_PASSWORD`: secreto con la contrasena del certificado.
+
+Configura los secretos sin imprimir su contenido:
+
+```powershell
+gh secret set SIGNING_PFX_BASE64 --repo favinzano/nextstepai-voice
+gh secret set SIGNING_PFX_PASSWORD --repo favinzano/nextstepai-voice
+```
+
+El workflow `Signed Windows Release` valida que ambos secretos existan antes de
+ejecutar pruebas o compilar.
 
 ## Construccion Firmada
 
@@ -42,3 +57,19 @@ npm run release:verify-signature
 ```
 
 No publiques un release estable mientras esta comprobacion falle.
+
+## Gate Para Beta Externa
+
+Antes de entregar binarios a testers:
+
+1. Completa `docs/acceptance-results.json` usando la plantilla y evidencia real.
+2. Ejecuta `npm run release:verify-acceptance`.
+3. Ejecuta manualmente `Signed Windows Release`.
+4. Descarga ambos artefactos firmados de GitHub Actions.
+5. Ejecuta `Get-AuthenticodeSignature` sobre cada instalador y exige estado
+   `Valid`.
+6. Publica o reemplaza activos de GitHub Release solo despues de actualizar
+   `.sha256`, `.blockmap` y `latest.yml`.
+
+Los releases sin firma deben permanecer marcados como pre-release y no deben
+usarse como canal de actualizacion automatica.

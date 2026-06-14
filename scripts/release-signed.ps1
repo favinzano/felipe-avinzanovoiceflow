@@ -2,7 +2,9 @@
 param(
   [string]$CertificatePath = $env:SIGNING_PFX_PATH,
   [string]$CertificatePassword = $env:SIGNING_PFX_PASSWORD,
-  [string]$TimestampUrl = $(if ($env:SIGNING_TIMESTAMP_URL) { $env:SIGNING_TIMESTAMP_URL } else { "http://timestamp.digicert.com" })
+  [string]$TimestampUrl = $(if ($env:SIGNING_TIMESTAMP_URL) { $env:SIGNING_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }),
+  [ValidateSet("Legacy", "AVX2")]
+  [string]$Flavor = "Legacy"
 )
 
 $ErrorActionPreference = "Stop"
@@ -167,6 +169,19 @@ try {
 
   Push-Location $projectRoot
   try {
+    if ($Flavor -eq "AVX2") {
+      $env:CL = "/arch:AVX2"
+      $env:CFLAGS = "/arch:AVX2"
+      $env:CXXFLAGS = "/arch:AVX2"
+      $env:NEXTSTEPAI_CPU_FEATURES = "avx2"
+    } else {
+      Remove-Item Env:CL, Env:CFLAGS, Env:CXXFLAGS -ErrorAction SilentlyContinue
+      $env:NEXTSTEPAI_CPU_FEATURES = "legacy"
+    }
+
+    $version = (Get-Content -LiteralPath (Join-Path $projectRoot "package.json") -Raw | ConvertFrom-Json).version
+    $artifactName = "NextStepAI-Voice-Setup-$version-$Flavor-x64.exe"
+
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "release:verify-acceptance")
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "build")
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "build:native")
@@ -181,6 +196,7 @@ try {
       "electron-builder",
       "--win", "nsis",
       "--x64",
+      "--config.win.artifactName=$artifactName",
       "--config.win.signtoolOptions.signingHashAlgorithms=sha256",
       "--config.win.signtoolOptions.rfc3161TimeStampServer=$TimestampUrl"
     )
@@ -190,15 +206,14 @@ try {
     if (-not (Test-Path -LiteralPath $application)) {
       throw "No se encontro la aplicacion desempaquetada: $application"
     }
-    $installer = Get-ChildItem -Path $releaseDir -Filter "NextStepAI-Voice-Setup-*-x64.exe" -File |
-      Sort-Object LastWriteTimeUtc -Descending |
-      Select-Object -First 1
+    $installer = Get-Item -LiteralPath (Join-Path $releaseDir $artifactName) -ErrorAction SilentlyContinue
     if (-not $installer) {
-      throw "electron-builder no genero el instalador NSIS esperado."
+      throw "electron-builder no genero el instalador esperado: $artifactName"
     }
     Verify-Artifact -SignTool $signTool -ArtifactPath $application
     Verify-Artifact -SignTool $signTool -ArtifactPath $pasteHelper
     Verify-Artifact -SignTool $signTool -ArtifactPath $installer.FullName
+    $env:RELEASE_FLAVOR = $Flavor
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "release:verify")
     Write-Host "Release firmado y verificado: $($installer.FullName)"
   } finally {

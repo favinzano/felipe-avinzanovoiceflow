@@ -7,7 +7,13 @@ const asar = require("@electron/asar");
 const root = path.join(__dirname, "..");
 const releaseDir = path.join(root, "release");
 const packageJson = require(path.join(root, "package.json"));
-const installerName = `NextStepAI-Voice-Setup-${packageJson.version}-x64.exe`;
+const releaseFlavor = process.env.RELEASE_FLAVOR;
+if (releaseFlavor && !["Legacy", "AVX2"].includes(releaseFlavor)) {
+  throw new Error(`Unsupported RELEASE_FLAVOR: ${releaseFlavor}`);
+}
+const installerName = releaseFlavor
+  ? `NextStepAI-Voice-Setup-${packageJson.version}-${releaseFlavor}-x64.exe`
+  : `NextStepAI-Voice-Setup-${packageJson.version}-x64.exe`;
 const installerPath = path.join(releaseDir, installerName);
 const unpackedExe = path.join(releaseDir, "win-unpacked", "NextStepAI Voice.exe");
 const resourcesDir = path.join(releaseDir, "win-unpacked", "resources");
