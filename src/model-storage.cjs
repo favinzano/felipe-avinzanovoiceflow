@@ -3,7 +3,7 @@ const path = require("node:path");
 
 const REQUIRED_FREE_BYTES = Object.freeze({
   fast: 300 * 1024 * 1024,
-  accurate: 750 * 1024 * 1024
+  accurate: 2 * 1024 * 1024 * 1024
 });
 
 function getModelCacheDir(userDataDir) {

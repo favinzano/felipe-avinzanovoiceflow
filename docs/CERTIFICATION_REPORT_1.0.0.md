@@ -15,7 +15,7 @@ NextStepAI Voice `1.0.0` cumple la validación técnica automatizable disponible
 - 5 casos de preferencias de aplicación.
 - 7 casos de migración y aislamiento de datos.
 - 3 casos reales de audio no verbal.
-- Whisper Base y Whisper Small ejecutados desde el paquete Windows.
+- Whisper Base y Whisper Large v3 Turbo ejecutados desde el paquete Windows.
 - Caché de modelos confirmada fuera del paquete, dentro de datos del usuario.
 - Instalación NSIS silenciosa.
 - Arranque desde instalación real.

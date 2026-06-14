@@ -9,6 +9,9 @@ on:
 jobs:
   validate:
     runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      TESTING_REMOTELY: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +21,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:production
+      - run: npm run test:models
       - run: npm audit --omit=dev
       - run: npm run release:win
       - run: npm run release:verify
@@ -29,4 +33,6 @@ jobs:
           name: nextstepai-voice-windows
           path: |
             release/NextStepAI-Voice-Setup-*.exe
+            release/NextStepAI-Voice-Setup-*.exe.blockmap
+            release/latest.yml
             release/NextStepAI-Voice-Setup-*.sha256

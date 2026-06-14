@@ -21,8 +21,10 @@ Validar precisión, latencia, estabilidad y pegado con voces y equipos reales an
 4. Nombres propios y términos del diccionario.
 5. Audio con silencios prolongados.
 6. Audio con repeticiones y autocorrecciones.
-7. Cambio entre Whisper Base y Small.
+7. Cambio entre Whisper Base y Large v3 Turbo.
 8. Pegado en distintas aplicaciones.
+9. Pausas naturales inferiores y superiores al periodo de gracia del VAD.
+10. Recuperación de historial tras corromper una copia de trabajo controlada.
 
 ## Métricas
 
@@ -39,4 +41,13 @@ Validar precisión, latencia, estabilidad y pegado con voces y equipos reales an
 - 0 transcripciones guardadas ante silencio.
 - 100% de emails/URLs del corpus crítico correctamente formateados.
 - Sin cierres inesperados durante 100 dictados consecutivos.
-- Small debe superar o igualar a Base en precisión del corpus.
+- Large v3 Turbo debe superar a Base en precisión del corpus.
+
+## Registro Obligatorio
+
+1. Copiar `docs/acceptance-results.template.json` a
+   `docs/acceptance-results.json`.
+2. Completar los doce casos con WER, resultado de pegado, notas y estado.
+3. Ejecutar `npm run release:verify-acceptance`.
+
+El release firmado se bloquea mientras exista un caso pendiente o fallido.

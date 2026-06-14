@@ -1,11 +1,35 @@
 $ErrorActionPreference = "Stop"
 
 $application = (Resolve-Path "release\win-unpacked\NextStepAI Voice.exe").Path
+$hiddenProfile = Join-Path $env:TEMP ("nextstepai-hidden-tray-test-" + [Guid]::NewGuid())
+New-Item -ItemType Directory -Path $hiddenProfile | Out-Null
+'{"autoStartEnabled":false,"closeBehavior":"tray"}' | Set-Content -Path (Join-Path $hiddenProfile "app-preferences.json") -Encoding utf8
+
+$hiddenProcess = Start-Process -FilePath $application -ArgumentList "--hidden", "--disable-gpu", "--allow-test-instance", "--user-data-dir=$hiddenProfile" -PassThru
+try {
+  Start-Sleep -Seconds 5
+  $hiddenProcess.Refresh()
+  if ($hiddenProcess.HasExited) {
+    throw "El arranque oculto termino el proceso."
+  }
+  if ($hiddenProcess.MainWindowHandle -ne 0) {
+    throw "El arranque con --hidden mostro una ventana en lugar de iniciar en la bandeja."
+  }
+  Write-Host "Hidden tray startup passed."
+}
+finally {
+  if (-not $hiddenProcess.HasExited) {
+    Stop-Process -Id $hiddenProcess.Id -Force
+    Wait-Process -Id $hiddenProcess.Id -Timeout 10 -ErrorAction SilentlyContinue
+  }
+  Remove-Item -LiteralPath $hiddenProfile -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 $profile = Join-Path $env:TEMP ("nextstepai-tray-test-" + [Guid]::NewGuid())
 New-Item -ItemType Directory -Path $profile | Out-Null
-'{"closeBehavior":"tray"}' | Set-Content -Path (Join-Path $profile "app-preferences.json") -Encoding utf8
+'{"autoStartEnabled":false,"closeBehavior":"tray"}' | Set-Content -Path (Join-Path $profile "app-preferences.json") -Encoding utf8
 
-$process = Start-Process -FilePath $application -ArgumentList "--user-data-dir=$profile" -PassThru
+$process = Start-Process -FilePath $application -ArgumentList "--disable-gpu", "--allow-test-instance", "--user-data-dir=$profile" -PassThru
 try {
   Start-Sleep -Seconds 5
   $process.Refresh()

@@ -74,7 +74,7 @@
           <section class="transcript-section">
             <div class="section-heading">
               <div><p class="eyebrow">Texto reciente</p><h2>Últimas transcripciones</h2></div>
-              <button class="text-button" id="clearHistory">Borrar historial</button>
+              <div class="history-actions"><input id="historySearch" type="search" placeholder="Buscar en historial" /><button class="text-button" id="exportHistory">Exportar</button><button class="text-button" id="clearHistory">Borrar historial</button></div>
             </div>
             <div class="history-list" id="historyList"></div>
           </section>
@@ -100,9 +100,12 @@
               <h3>Captura</h3>
               <label class="setting-row"><span><strong>Micrófono</strong><small>Entrada usada para capturar tu voz.</small></span><select id="microphoneSelect"><option value="">Micrófono predeterminado</option></select></label>
               <label class="setting-row"><span><strong>Idioma</strong><small>Idioma principal para Whisper.</small></span><select id="languageSelect"><option value="spanish">Español</option><option value="english">English</option><option value="french">Français</option><option value="german">Deutsch</option><option value="portuguese">Português</option></select></label>
-              <label class="setting-row"><span><strong>Calidad de transcripción</strong><small>Base prioriza velocidad. Small mejora precisión y requiere más tiempo.</small></span><select id="whisperProfile"><option value="fast">Rápido · Whisper Base</option><option value="accurate">Alta precisión · Whisper Small</option></select></label>
-              <div class="setting-row"><span><strong>Atajo de transcripción</strong><small>Disponible incluso con la ventana en segundo plano.</small></span><kbd>Ctrl + Shift + Espacio</kbd></div>
-              <div class="setting-row"><span><strong>Reprocesar última grabación</strong><small>Vuelve a ejecutar el motor sin grabar otra vez.</small></span><kbd>Ctrl + Alt + Espacio</kbd></div>
+              <label class="setting-row"><span><strong>Calidad de transcripción</strong><small>Máxima precisión usa PCM sin compresión, Whisper Large v3 Turbo y beam search.</small></span><select id="whisperProfile"><option value="fast">Rápido · Whisper Base Q8</option><option value="accurate">Máxima precisión · Whisper Large v3 Turbo Q8</option></select></label>
+              <label class="setting-row"><span><strong>Aceleración de inferencia</strong><small>DirectML usa la GPU de Windows y vuelve a CPU si no es compatible.</small></span><select id="inferenceDevice"><option value="cpu">CPU · máxima compatibilidad</option><option value="dml">DirectML · experimental</option></select></label>
+              <label class="setting-row"><span><strong>Detener al detectar silencio</strong><small>Finaliza automáticamente después de hablar y permanecer en silencio.</small></span><input type="checkbox" id="autoStopEnabled" /></label>
+              <label class="setting-row"><span><strong>Periodo de gracia del silencio</strong><small>Una pausa más larga finaliza y procesa la grabación.</small></span><select id="silenceTimeout"><option value="1200">1.2 segundos</option><option value="1800">1.8 segundos</option><option value="2500">2.5 segundos</option><option value="4000">4 segundos</option></select></label>
+              <label class="setting-row"><span><strong>Atajo de transcripción</strong><small>Disponible incluso con la ventana en segundo plano.</small></span><select id="recordShortcut"><option value="CommandOrControl+Shift+Space">Ctrl + Shift + Espacio</option><option value="CommandOrControl+Shift+D">Ctrl + Shift + D</option><option value="CommandOrControl+Alt+V">Ctrl + Alt + V</option></select></label>
+              <label class="setting-row"><span><strong>Reprocesar última grabación</strong><small>Vuelve a ejecutar el motor sin grabar otra vez.</small></span><select id="reprocessShortcut"><option value="CommandOrControl+Alt+Space">Ctrl + Alt + Espacio</option><option value="CommandOrControl+Alt+D">Ctrl + Alt + D</option><option value="CommandOrControl+Shift+V">Ctrl + Shift + V</option></select></label>
             </section>
 
             <section class="settings-group">
@@ -119,6 +122,7 @@
             </section>
             <section class="settings-group">
               <h3>Aplicación</h3>
+              <label class="setting-row"><span><strong>Iniciar con Windows</strong><small>Abre NextStepAI Voice silenciosamente en la bandeja al iniciar sesión.</small></span><input type="checkbox" id="autoStartEnabled" /></label>
               <label class="setting-row"><span><strong>Al cerrar la ventana</strong><small>Ocultarla mantiene disponibles los atajos globales.</small></span><select id="closeBehavior"><option value="ask">Preguntar siempre</option><option value="tray">Ocultar en la bandeja</option><option value="exit">Salir de la aplicación</option></select></label>
             </section>
           </div>
@@ -141,7 +145,7 @@
           <header class="page-header"><div><p class="eyebrow">05 / Producto</p><h1>Acerca de<br />NextStepAI Voice.</h1></div></header>
           <section class="about-card">
             <div class="about-mark"><span class="incision-mark hero" aria-hidden="true"><i></i><i></i></span></div>
-            <div><h2>Dictado privado para trabajo real.</h2><p>NextStepAI Voice convierte voz en texto usando un motor Whisper ejecutado en tu equipo. El audio no se envía a servidores externos.</p><p>El producto está diseñado para capturar decisiones, mensajes e ideas sin interrumpir el trabajo que ya estás haciendo.</p><dl><div><dt>Versión</dt><dd>1.0.0</dd></div><div><dt>Motor</dt><dd>Whisper Base / Small local</dd></div><div><dt>Identidad</dt><dd>NextStepAI</dd></div></dl></div>
+            <div><h2>Dictado privado para trabajo real.</h2><p>NextStepAI Voice convierte voz en texto usando un motor Whisper ejecutado en tu equipo. El audio no se envía a servidores externos.</p><p>El producto está diseñado para capturar decisiones, mensajes e ideas sin interrumpir el trabajo que ya estás haciendo.</p><dl><div><dt>Versión</dt><dd>1.0.0</dd></div><div><dt>Motor</dt><dd>Whisper Base / Large v3 Turbo local</dd></div><div><dt>Identidad</dt><dd>NextStepAI</dd></div></dl></div>
           </section>
         </div>
 
@@ -151,6 +155,7 @@
             <section class="feature-card"><span class="card-kicker">Diagnóstico</span><h2>¿Algo no funciona?</h2><p>Copia información técnica básica para compartirla con soporte.</p><button id="diagnosticsButton">Copiar diagnóstico</button></section>
             <section class="feature-card"><span class="card-kicker">Recuperación</span><h2>Reparar modelos locales.</h2><p>Elimina una descarga dañada y prepara una descarga limpia en la próxima transcripción.</p><button id="repairModelsButton">Reparar modelos</button></section>
             <section class="feature-card"><span class="card-kicker">Primeros pasos</span><h2>Revisa la guía rápida.</h2><p>Confirma el micrófono, el idioma y el modo de entrega.</p><button class="go-guide">Abrir guía</button></section>
+            <section class="feature-card"><span class="card-kicker">Rendimiento local</span><h2 id="performanceSummary">Esperando una transcripción.</h2><p id="performanceDetails">Aquí verás latencia, factor de tiempo real y memoria utilizada.</p></section>
             <section class="feature-card"><span class="card-kicker">Privacidad</span><h2>Tus palabras se quedan aquí.</h2><p>Audio, diccionario e historial permanecen en este equipo.</p></section>
           </div>
         </div>

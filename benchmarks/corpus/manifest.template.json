@@ -1,0 +1,11 @@
+{
+  "candidates": [],
+  "cases": [
+    {
+      "id": "es-plan-01",
+      "audio": "es-plan-01.wav",
+      "language": "spanish",
+      "reference": "Auditar el estado actual y mapear cada debilidad a cambios concretos. Implementar atajos configurables con registro seguro y rollback. Añadir métricas visibles de latencia y memoria. Crear roadmap técnico para modelos, pegado nativo y persistencia. Ejecutar validaciones y resumir brechas restantes."
+    }
+  ]
+}

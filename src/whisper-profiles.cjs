@@ -4,18 +4,20 @@ const WHISPER_PROFILES = Object.freeze({
     label: "Rápido",
     shortLabel: "Whisper Base",
     model: "onnx-community/whisper-base",
-    dtype: "q8"
+    dtype: "q8",
+    generation: Object.freeze({ num_beams: 1 })
   }),
   accurate: Object.freeze({
     id: "accurate",
-    label: "Alta precisión",
-    shortLabel: "Whisper Small",
-    model: "onnx-community/whisper-small",
-    dtype: "q8"
+    label: "Máxima precisión",
+    shortLabel: "Whisper Large v3 Turbo",
+    model: "onnx-community/whisper-large-v3-turbo",
+    dtype: "q8",
+    generation: Object.freeze({ num_beams: 3 })
   })
 });
 
-const DEFAULT_WHISPER_PROFILE = "fast";
+const DEFAULT_WHISPER_PROFILE = "accurate";
 
 function resolveWhisperProfile(profileId) {
   return WHISPER_PROFILES[profileId] || WHISPER_PROFILES[DEFAULT_WHISPER_PROFILE];

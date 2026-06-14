@@ -11,12 +11,16 @@ El archivo `Iniciar NextStepAI Voice.bat` se mantiene únicamente para desarroll
 ## Funciones
 
 - Grabacion desde el microfono.
-- Dos modos locales multilenguaje: Whisper Base para velocidad y Whisper Small para mayor precisión.
-- Atajo global `Ctrl+Shift+Space` para iniciar y detener.
-- Segundo atajo `Ctrl+Alt+Space` para reprocesar la ultima grabacion.
+- Dos modos locales multilenguaje: Whisper Base para velocidad y Whisper Large v3 Turbo para máxima precisión.
+- Inferencia por CPU o DirectML experimental con recuperacion automatica a CPU.
+- Atajos globales configurables para grabar y reprocesar.
 - Pegado automatico o copia al portapapeles.
 - Limpieza opcional del texto y diccionario personal.
-- Historial local configurable.
+- Historial local configurable, buscable y exportable.
+- Metricas locales de latencia, factor de tiempo real y memoria.
+- Parada automatica mediante VAD local adaptativo.
+- Persistencia versionada con backup y recuperacion local.
+- Pegado mediante helper Windows x64 y fallback explicito al portapapeles.
 - Guia rapida, diagnostico y preferencias avanzadas.
 - Burbuja flotante que no roba el foco al usar el atajo global.
 

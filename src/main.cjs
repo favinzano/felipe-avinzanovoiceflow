@@ -1,8 +1,20 @@
-const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, session, screen, Tray } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, session, screen, shell, Tray } = require("electron");
+const { autoUpdater } = require("electron-updater");
+const fs = require("fs/promises");
 const path = require("path");
 const { execFile } = require("child_process");
-const { getCloseBehavior, setCloseBehavior } = require("./app-preferences.cjs");
+const {
+  DEFAULT_SHORTCUTS,
+  getAutoStartEnabled,
+  getCloseBehavior,
+  getShortcuts,
+  hasAutoStartPreference,
+  setAutoStartEnabled,
+  setCloseBehavior,
+  setShortcuts
+} = require("./app-preferences.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
+const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
 const {
   clearModelCache,
   directorySize,
@@ -14,35 +26,126 @@ let mainWindow;
 let overlayWindow;
 let transcriber;
 let transcriberProfile;
+let transcriberDevice;
+let transcriberRequestedDevice;
 let transcriberPromise;
 let loadingProfile;
+let loadingDevice;
 let pasteTarget;
 let shortcutRecording = false;
 let tray;
 let isQuitting = false;
 let closeDialogOpen = false;
+let manualUpdateCheck = false;
+let activeShortcuts;
+let lastModelLoadMs;
+let lastTranscriptionMetrics;
+let lastDeviceFallback;
+const startHidden = process.argv.includes("--hidden");
+const allowTestInstance = process.argv.includes("--allow-test-instance");
 
 app.setName("NextStepAI Voice");
 if (!app.isPackaged) {
   app.setPath("userData", path.join(app.getPath("appData"), "NextStepAI Voice Development"));
 }
 if (process.platform === "win32") app.setAppUserModelId("com.nextstepai.voice");
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
 app.on("second-instance", () => {
   showMainWindow();
 });
 
-function showMainWindow() {
+function sendToMainWindow(channel, ...args) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const send = () => mainWindow?.webContents.send(channel, ...args);
+  if (mainWindow.webContents.isLoading()) mainWindow.webContents.once("did-finish-load", send);
+  else send();
+}
+
+function showMainWindow(panel) {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  if (panel) sendToMainWindow("app:navigate", panel);
 }
 
 function hideToTray() {
   mainWindow?.hide();
+}
+
+function configureAutoStart(enabled) {
+  const shouldEnable = Boolean(enabled);
+  if (process.platform !== "win32" || !app.isPackaged) return false;
+
+  app.setLoginItemSettings({
+    openAtLogin: shouldEnable,
+    path: app.getPath("exe"),
+    args: ["--hidden"]
+  });
+  return app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
+}
+
+function initializeAutoStart() {
+  const userDataPath = app.getPath("userData");
+  const isFirstLaunch = !hasAutoStartPreference(userDataPath);
+  const enabled = getAutoStartEnabled(userDataPath);
+  const applied = configureAutoStart(enabled);
+  if (isFirstLaunch && app.isPackaged && process.platform === "win32") {
+    setAutoStartEnabled(userDataPath, applied);
+  }
+}
+
+async function handleRecordShortcut() {
+  if (!shortcutRecording) {
+    try {
+      await capturePasteTarget();
+    } catch (error) {
+      console.error("Could not capture paste target:", error);
+    }
+  }
+  shortcutRecording = !shortcutRecording;
+  sendToMainWindow("shortcut:toggle");
+}
+
+async function handleReprocessShortcut() {
+  try {
+    await capturePasteTarget();
+  } catch (error) {
+    console.error("Could not capture paste target:", error);
+  }
+  sendToMainWindow("shortcut:reprocess");
+}
+
+function registerGlobalShortcuts(shortcuts) {
+  if (!shortcuts || shortcuts.record === shortcuts.reprocess) {
+    throw new Error("Los atajos deben ser diferentes.");
+  }
+
+  const previous = activeShortcuts;
+  globalShortcut.unregisterAll();
+  let recordRegistered = false;
+  let reprocessRegistered = false;
+  try {
+    recordRegistered = globalShortcut.register(shortcuts.record, handleRecordShortcut);
+    reprocessRegistered = recordRegistered && globalShortcut.register(shortcuts.reprocess, handleReprocessShortcut);
+  } catch (error) {
+    console.error("Invalid global shortcut:", error);
+  }
+
+  if (recordRegistered && reprocessRegistered) {
+    activeShortcuts = { ...shortcuts };
+    return activeShortcuts;
+  }
+
+  globalShortcut.unregisterAll();
+  if (previous) {
+    globalShortcut.register(previous.record, handleRecordShortcut);
+    globalShortcut.register(previous.reprocess, handleReprocessShortcut);
+    activeShortcuts = previous;
+  }
+  throw new Error("Windows rechazó uno de los atajos. Puede estar en uso por otra aplicación.");
 }
 
 function createTray() {
@@ -50,7 +153,16 @@ function createTray() {
   tray = new Tray(trayImage.resize({ width: 16, height: 16 }));
   tray.setToolTip("NextStepAI Voice");
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Abrir NextStepAI Voice", click: showMainWindow },
+    { label: `NextStepAI Voice v${app.getVersion()}`, enabled: false },
+    { type: "separator" },
+    { label: "Inicio", click: () => showMainWindow("home") },
+    { label: "Buscar actualizaciones...", click: () => checkForUpdates(true) },
+    { label: "Pegar última transcripción", click: () => sendToMainWindow("tray:paste-last") },
+    { type: "separator" },
+    {
+      label: "Enviar comentarios...",
+      click: () => shell.openExternal("https://github.com/favinzano/nextstepai-voice/issues")
+    },
     { type: "separator" },
     {
       label: "Salir",
@@ -60,7 +172,68 @@ function createTray() {
       }
     }
   ]));
-  tray.on("double-click", showMainWindow);
+  tray.on("click", async () => {
+    await capturePasteTarget().catch(() => {});
+    tray?.popUpContextMenu();
+  });
+  tray.on("right-click", () => capturePasteTarget().catch(() => {}));
+  tray.on("double-click", () => showMainWindow());
+}
+
+function configureAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-not-available", () => {
+    if (!manualUpdateCheck) return;
+    manualUpdateCheck = false;
+    dialog.showMessageBox({
+      type: "info",
+      title: "NextStepAI Voice está actualizado",
+      message: `Ya tienes la versión más reciente (${app.getVersion()}).`
+    });
+  });
+  autoUpdater.on("update-available", () => {
+    if (manualUpdateCheck) {
+      dialog.showMessageBox({
+        type: "info",
+        title: "Actualización encontrada",
+        message: "La nueva versión se está descargando y se instalará automáticamente."
+      });
+    }
+    manualUpdateCheck = false;
+  });
+  autoUpdater.on("update-downloaded", () => {
+    isQuitting = true;
+    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  });
+  autoUpdater.on("error", (error) => {
+    console.error("Update check failed:", error);
+    if (!manualUpdateCheck) return;
+    manualUpdateCheck = false;
+    dialog.showMessageBox({
+      type: "error",
+      title: "No se pudo buscar actualizaciones",
+      message: "Revisa tu conexión e inténtalo nuevamente."
+    });
+  });
+}
+
+function checkForUpdates(interactive = false) {
+  if (!app.isPackaged) {
+    if (interactive) {
+      dialog.showMessageBox({
+        type: "info",
+        title: "Actualizaciones",
+        message: "La búsqueda de actualizaciones está disponible en la aplicación instalada."
+      });
+    }
+    return;
+  }
+  manualUpdateCheck = interactive;
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error("Could not start update check:", error);
+  });
 }
 
 async function handleWindowClose(event) {
@@ -105,17 +278,24 @@ async function handleWindowClose(event) {
   }
 }
 
-async function getTranscriber(profileId) {
+function normalizeInferenceDevice(device) {
+  return device === "dml" && process.platform === "win32" ? "dml" : "cpu";
+}
+
+async function getTranscriber(profileId, requestedDevice = "cpu") {
   const profile = resolveWhisperProfile(profileId);
-  if (transcriber && transcriberProfile === profile.id) return transcriber;
-  if (transcriberPromise && loadingProfile === profile.id) return transcriberPromise;
+  const device = normalizeInferenceDevice(requestedDevice);
+  if (transcriber && transcriberProfile === profile.id && transcriberRequestedDevice === device) return transcriber;
+  if (transcriberPromise && loadingProfile === profile.id && loadingDevice === device) return transcriberPromise;
   if (transcriberPromise) {
     await transcriberPromise;
-    return getTranscriber(profile.id);
+    return getTranscriber(profile.id, device);
   }
 
   loadingProfile = profile.id;
+  loadingDevice = device;
   transcriberPromise = (async () => {
+    const modelLoadStartedAt = performance.now();
     const { pipeline, env } = await import("@huggingface/transformers");
     env.cacheDir = await ensureModelCache(app.getPath("userData"), profile.id);
     env.allowLocalModels = true;
@@ -124,9 +304,10 @@ async function getTranscriber(profileId) {
     if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
     transcriber = undefined;
     transcriberProfile = undefined;
+    transcriberDevice = undefined;
+    transcriberRequestedDevice = undefined;
 
-    const nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
-      device: "cpu",
+    const pipelineOptions = {
       dtype: profile.dtype,
       progress_callback: (progress) => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -137,9 +318,30 @@ async function getTranscriber(profileId) {
           progress: Number.isFinite(progress.progress) ? progress.progress : null
         });
       }
-    });
+    };
+    let activeDevice = device;
+    let nextTranscriber;
+    try {
+      nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
+        ...pipelineOptions,
+        device
+      });
+      lastDeviceFallback = undefined;
+    } catch (error) {
+      if (device !== "dml") throw error;
+      console.warn("DirectML initialization failed; falling back to CPU:", error);
+      activeDevice = "cpu";
+      lastDeviceFallback = String(error?.message || error);
+      nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
+        ...pipelineOptions,
+        device: "cpu"
+      });
+    }
     transcriber = nextTranscriber;
     transcriberProfile = profile.id;
+    transcriberDevice = activeDevice;
+    transcriberRequestedDevice = device;
+    lastModelLoadMs = Math.round(performance.now() - modelLoadStartedAt);
     return nextTranscriber;
   })();
 
@@ -148,10 +350,13 @@ async function getTranscriber(profileId) {
   } catch (error) {
     transcriber = undefined;
     transcriberProfile = undefined;
+    transcriberDevice = undefined;
+    transcriberRequestedDevice = undefined;
     throw error;
   } finally {
     transcriberPromise = undefined;
     loadingProfile = undefined;
+    loadingDevice = undefined;
   }
 }
 
@@ -167,6 +372,7 @@ function friendlyModelError(error) {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
+    show: !startHidden,
     width: 1060,
     height: 720,
     minWidth: 860,
@@ -245,40 +451,31 @@ function updateOverlay(state) {
   overlayWindow.showInactive();
 }
 
-function runPowerShell(script) {
+function pasteHelperPath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "native", "win32-x64", "NextStepAI.PasteHelper.exe")
+    : path.join(__dirname, "..", "native", "win32-x64", "NextStepAI.PasteHelper.exe");
+}
+
+function runPasteHelper(args) {
   return new Promise((resolve, reject) => {
-    const encodedScript = Buffer.from(script, "utf16le").toString("base64");
-    execFile(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", encodedScript],
-      { windowsHide: true },
-      (error, stdout) => {
-        if (error) reject(error);
-        else resolve(stdout.trim());
+    execFile(pasteHelperPath(), args, { windowsHide: true }, (error, stdout) => {
+      let result;
+      try {
+        result = JSON.parse(stdout.trim());
+      } catch {
+        result = { ok: false, error: error?.message || "invalid_helper_response" };
       }
-    );
+      if (error || !result.ok) reject(new Error(result.error || error.message));
+      else resolve(result);
+    });
   });
 }
 
 async function capturePasteTarget() {
   if (process.platform !== "win32") return;
-  const script = [
-    "Add-Type @'",
-    "using System;",
-    "using System.Runtime.InteropServices;",
-    "public static class FocusCapture {",
-    "  [DllImport(\"user32.dll\")] public static extern IntPtr GetForegroundWindow();",
-    "  [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);",
-    "}",
-    "'@",
-    "$h = [FocusCapture]::GetForegroundWindow()",
-    "[uint32]$pidValue = 0",
-    "[FocusCapture]::GetWindowThreadProcessId($h, [ref]$pidValue) | Out-Null",
-    "Write-Output ($h.ToInt64().ToString() + '|' + $pidValue.ToString())"
-  ].join("\n");
-  const output = await runPowerShell(script);
-  const [handle, processId] = output.split("|").map(Number);
-  if (handle && processId) pasteTarget = { handle, processId };
+  const result = await runPasteHelper(["capture"]);
+  pasteTarget = { handle: result.handle, processId: result.processId };
 }
 
 async function pasteIntoActiveApp(text) {
@@ -286,53 +483,85 @@ async function pasteIntoActiveApp(text) {
 
   if (process.platform !== "win32") return true;
 
-  const script = [
-    "$targetHandle = [IntPtr]" + (pasteTarget?.handle || 0),
-    "$targetProcess = " + (pasteTarget?.processId || 0),
-    "Add-Type -AssemblyName System.Windows.Forms",
-    "Add-Type @'",
-    "using System;",
-    "using System.Runtime.InteropServices;",
-    "public static class FocusRestore {",
-    "  [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);",
-    "  [DllImport(\"user32.dll\")] public static extern bool ShowWindowAsync(IntPtr hWnd, int command);",
-    "}",
-    "'@",
-    "if ($targetHandle -ne [IntPtr]::Zero) {",
-    "  [FocusRestore]::ShowWindowAsync($targetHandle, 9) | Out-Null",
-    "  [FocusRestore]::SetForegroundWindow($targetHandle) | Out-Null",
-    "}",
-    "if ($targetProcess -gt 0) {",
-    "  $shell = New-Object -ComObject WScript.Shell",
-    "  $shell.AppActivate($targetProcess) | Out-Null",
-    "}",
-    "Start-Sleep -Milliseconds 320",
-    "[System.Windows.Forms.SendKeys]::SendWait('^v')",
-    "Start-Sleep -Milliseconds 120",
-    "Write-Output 'PASTED'"
-  ].join("\n");
-
-  const output = await runPowerShell(script);
+  if (!pasteTarget?.handle) return false;
+  const target = pasteTarget;
   pasteTarget = undefined;
-  return output.includes("PASTED");
+  try {
+    await runPasteHelper(["paste", "--handle", String(target.handle), "--process", String(target.processId)]);
+    return true;
+  } catch (error) {
+    console.error("Native paste helper could not inject Ctrl+V:", error);
+    return false;
+  }
 }
 
 async function runPackagedModelSelfTest() {
   const argument = process.argv.find((value) => value.startsWith("--self-test-model="));
   if (!argument) return false;
   const profileId = argument.split("=")[1];
-  const pipe = await getTranscriber(profileId);
+  const profile = resolveWhisperProfile(profileId);
+  const pipe = await getTranscriber(profile.id, "cpu");
   await pipe(new Float32Array(32000), {
     language: "spanish",
     task: "transcribe",
     chunk_length_s: 30,
-    stride_length_s: 5
+    stride_length_s: 5,
+    ...profile.generation
   });
+  const reportArgument = process.argv.find((value) => value.startsWith("--self-test-report="));
+  if (reportArgument) {
+    const cacheDir = getModelCacheDir(app.getPath("userData"));
+    const reportPath = path.resolve(reportArgument.slice("--self-test-report=".length));
+    await fs.mkdir(path.dirname(reportPath), { recursive: true });
+    await fs.writeFile(reportPath, JSON.stringify({
+      cacheBytes: await directorySize(cacheDir),
+      cacheDir,
+      device: transcriberDevice,
+      dtype: profile.dtype,
+      model: profile.model,
+      profile: profile.id
+    }, null, 2), "utf8");
+  }
+  return true;
+}
+
+async function runAudioWorkletSelfTest() {
+  if (!process.argv.includes("--self-test-audio-worklet")) return false;
+  const testWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  try {
+    await testWindow.loadFile(path.join(__dirname, "..", "index.html"));
+    const result = await testWindow.webContents.executeJavaScript(`
+      (async () => {
+        const context = new AudioContext({ sampleRate: 16000 });
+        try {
+          await context.audioWorklet.addModule("src/pcm-capture-worklet.js");
+          const node = new AudioWorkletNode(context, "nextstepai-pcm-capture");
+          node.disconnect();
+          return { sampleRate: context.sampleRate, state: context.state };
+        } finally {
+          await context.close();
+        }
+      })()
+    `);
+    if (result.sampleRate !== 16000) throw new Error(`Unexpected audio sample rate: ${result.sampleRate}`);
+  } finally {
+    testWindow.destroy();
+  }
   return true;
 }
 
 app.whenReady().then(async () => {
   try {
+    if (await runAudioWorkletSelfTest()) {
+      app.exit(0);
+      return;
+    }
     if (await runPackagedModelSelfTest()) {
       app.exit(0);
       return;
@@ -353,28 +582,20 @@ app.whenReady().then(async () => {
   createWindow();
   createOverlayWindow();
   createTray();
+  initializeAutoStart();
+  configureAutoUpdater();
+  checkForUpdates();
 
-  const registered = globalShortcut.register("CommandOrControl+Shift+Space", async () => {
-    if (!shortcutRecording) {
-      try {
-        await capturePasteTarget();
-      } catch (error) {
-        console.error("Could not capture paste target:", error);
-      }
-    }
-    shortcutRecording = !shortcutRecording;
-    mainWindow?.webContents.send("shortcut:toggle");
-  });
-  const reprocessRegistered = globalShortcut.register("CommandOrControl+Alt+Space", async () => {
+  try {
+    registerGlobalShortcuts(getShortcuts(app.getPath("userData")));
+  } catch (error) {
+    console.error("Could not register global shortcuts:", error);
     try {
-      await capturePasteTarget();
-    } catch (error) {
-      console.error("Could not capture paste target:", error);
+      registerGlobalShortcuts(DEFAULT_SHORTCUTS);
+      setShortcuts(app.getPath("userData"), DEFAULT_SHORTCUTS);
+    } catch (fallbackError) {
+      console.error("Could not register default global shortcuts:", fallbackError);
     }
-    mainWindow?.webContents.send("shortcut:reprocess");
-  });
-
-  if (!registered || !reprocessRegistered) {
     mainWindow.webContents.once("did-finish-load", () => {
       mainWindow.webContents.send("shortcut:error");
     });
@@ -390,17 +611,49 @@ ipcMain.handle("clipboard:paste", async (_event, text) => {
   return pasteIntoActiveApp(text);
 });
 
-ipcMain.handle("transcription:run", async (_event, audio, language, profileId) => {
+ipcMain.handle("history:export", async (_event, entries) => {
+  if (!Array.isArray(entries)) throw new Error("History entries must be an array.");
+  const safeEntries = entries.map((entry) => ({
+    at: typeof entry?.at === "string" ? entry.at : "",
+    text: typeof entry?.text === "string" ? entry.text : ""
+  }));
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Exportar historial",
+    defaultPath: `NextStepAI-Voice-History-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: "JSON", extensions: ["json"] }]
+  });
+  if (result.canceled || !result.filePath) return false;
+  await fs.writeFile(result.filePath, JSON.stringify({ version: 1, entries: safeEntries }, null, 2), "utf8");
+  return true;
+});
+ipcMain.handle("state:get", () => readState(app.getPath("userData")));
+ipcMain.handle("state:migrate-legacy", (_event, legacyState) => migrateLegacyState(app.getPath("userData"), legacyState));
+ipcMain.handle("state:write", (_event, state) => writeState(app.getPath("userData"), state));
+
+ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
   try {
-    const pipe = await getTranscriber(profileId);
+    const startedAt = performance.now();
+    const pipe = await getTranscriber(profileId, device);
+    const inferenceStartedAt = performance.now();
     const samples = audio instanceof Float32Array ? audio : new Float32Array(audio);
     const output = await pipe(samples, {
       language,
       task: "transcribe",
       chunk_length_s: 30,
-      stride_length_s: 5
+      stride_length_s: 5,
+      ...resolveWhisperProfile(profileId).generation
     });
-    return output.text.trim();
+    const inferenceMs = Math.round(performance.now() - inferenceStartedAt);
+    const totalMs = Math.round(performance.now() - startedAt);
+    const audioSeconds = samples.length / 16000;
+    lastTranscriptionMetrics = {
+      audioSeconds: Number(audioSeconds.toFixed(1)),
+      inferenceMs,
+      modelLoadMs: totalMs - inferenceMs,
+      realtimeFactor: Number((inferenceMs / 1000 / Math.max(audioSeconds, 0.1)).toFixed(2)),
+      totalMs
+    };
+    return { text: output.text.trim(), metrics: lastTranscriptionMetrics, device: transcriberDevice };
   } catch (error) {
     throw new Error(friendlyModelError(error));
   }
@@ -410,6 +663,8 @@ ipcMain.handle("models:clear", async () => {
   if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
   transcriber = undefined;
   transcriberProfile = undefined;
+  transcriberDevice = undefined;
+  transcriberRequestedDevice = undefined;
   transcriberPromise = undefined;
   loadingProfile = undefined;
   await clearModelCache(app.getPath("userData"));
@@ -424,16 +679,45 @@ ipcMain.handle("overlay:set-state", (_event, state) => {
 
 ipcMain.handle("app:diagnostics", async () => {
   const cacheDir = getModelCacheDir(app.getPath("userData"));
+  const memory = process.memoryUsage();
   return {
     platform: `${process.platform} ${process.arch}`,
     version: app.getVersion(),
     loadedWhisperProfile: transcriberProfile || loadingProfile || "none",
+    inferenceDevice: transcriberDevice || loadingDevice || "none",
+    requestedInferenceDevice: transcriberRequestedDevice || loadingDevice || "none",
+    lastDeviceFallback,
+    shortcuts: activeShortcuts || getShortcuts(app.getPath("userData")),
+    memoryRssMb: Math.round(memory.rss / 1024 / 1024),
+    heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+    lastModelLoadMs,
+    lastTranscriptionMetrics,
+    stateSchemaVersion: STATE_SCHEMA_VERSION,
+    statePath: statePath(app.getPath("userData")),
     modelCacheMb: Math.round(await directorySize(cacheDir) / 1024 / 1024),
     modelCacheDir: cacheDir
   };
 });
 ipcMain.handle("app:get-close-behavior", () => getCloseBehavior(app.getPath("userData")));
 ipcMain.handle("app:set-close-behavior", (_event, behavior) => setCloseBehavior(app.getPath("userData"), behavior));
+ipcMain.handle("preferences:get-shortcuts", () => activeShortcuts || getShortcuts(app.getPath("userData")));
+ipcMain.handle("preferences:set-shortcuts", (_event, shortcuts) => {
+  const registered = registerGlobalShortcuts(shortcuts);
+  setShortcuts(app.getPath("userData"), registered);
+  return registered;
+});
+ipcMain.handle("preferences:get-autostart", () => {
+  if (process.platform !== "win32" || !app.isPackaged) return false;
+  const enabled = app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
+  setAutoStartEnabled(app.getPath("userData"), enabled);
+  return enabled;
+});
+ipcMain.handle("preferences:set-autostart", (_event, enabled) => {
+  if (typeof enabled !== "boolean") throw new Error("Auto-start preference must be a boolean.");
+  const applied = configureAutoStart(enabled);
+  setAutoStartEnabled(app.getPath("userData"), applied);
+  return applied;
+});
 
 ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:hide", () => mainWindow?.hide());

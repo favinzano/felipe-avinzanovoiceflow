@@ -1,45 +1,71 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const { cleanTranscription } = require("./text-cleanup.cjs");
+const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
+const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-const { initializeProductionProfile } = require("./data-migrations.cjs");
+const { initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
 
 const voiceAPI = window.voiceAPI || {
   runtime: { isPackaged: false },
   copy: async (text) => navigator.clipboard?.writeText(text),
   paste: async (text) => navigator.clipboard?.writeText(text),
+  exportHistory: async () => false,
+  getState: async () => ({ settings: {}, history: [], dictionary: [], microphone: "" }),
+  migrateLegacyState: async (state) => state,
+  writeState: async (state) => state,
   transcribe: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
   overlay: async () => {},
   diagnostics: async () => ({ platform: "browser", version: "preview" }),
   clearModels: async () => true,
   getCloseBehavior: async () => "ask",
   setCloseBehavior: async () => "ask",
+  getAutoStart: async () => false,
+  setAutoStart: async () => false,
+  getShortcuts: async () => ({ record: "CommandOrControl+Shift+Space", reprocess: "CommandOrControl+Alt+Space" }),
+  setShortcuts: async (shortcuts) => shortcuts,
   onShortcutToggle: () => {},
   onReprocess: () => {},
   onShortcutError: () => {},
-  onModelProgress: () => {}
+  onModelProgress: () => {},
+  onNavigate: () => {},
+  onPasteLast: () => {}
 };
 
 initializeProductionProfile(localStorage, voiceAPI.runtime.isPackaged);
+upgradeAccuracyDefault(localStorage);
 
 const defaults = {
   language: "spanish",
-  whisperProfile: "fast",
+  whisperProfile: "accurate",
+  inferenceDevice: "cpu",
   deliveryMode: "paste-copy",
   appendSpace: true,
   cleanupText: true,
   dictionaryEnabled: true,
-  historyLimit: 30
+  historyLimit: 30,
+  autoStopEnabled: true,
+  silenceTimeoutMs: 1800,
+  autoStartEnabled: true
 };
 
-let settings = { ...defaults, ...JSON.parse(localStorage.getItem("voice-settings") || "{}") };
-let history = JSON.parse(localStorage.getItem("voice-history") || "[]");
-let dictionary = JSON.parse(localStorage.getItem("voice-dictionary") || "[]");
+const legacyState = {
+  settings: JSON.parse(localStorage.getItem("voice-settings") || "{}"),
+  history: JSON.parse(localStorage.getItem("voice-history") || "[]"),
+  dictionary: JSON.parse(localStorage.getItem("voice-dictionary") || "[]"),
+  microphone: localStorage.getItem("voice-microphone") || ""
+};
+let settings = { ...defaults, ...legacyState.settings };
+let history = legacyState.history;
+let dictionary = legacyState.dictionary;
+let persistedMicrophone = legacyState.microphone;
 history = history.map((item) => ({ ...item, id: item.id || crypto.randomUUID() }));
-localStorage.setItem("voice-history", JSON.stringify(history));
 let mediaStream;
-let mediaRecorder;
-let recordedChunks = [];
+let audioContext;
+let audioSource;
+let captureNode;
+let silentGain;
+let recordedPcmChunks = [];
 let lastAudio;
 let recording = false;
 let processing = false;
@@ -48,6 +74,9 @@ let startedAt;
 let triggerSource = "button";
 let guideIndex = 0;
 let overlayHideTimer;
+let autoStopPending = false;
+let voiceActivityDetector;
+let persistQueue = Promise.resolve();
 
 const elements = {
   recordButton: $("#recordButton"),
@@ -58,6 +87,8 @@ const elements = {
   waveform: $("#waveform"),
   modelBadge: $("#modelBadge"),
   historyList: $("#historyList"),
+  historySearch: $("#historySearch"),
+  exportHistory: $("#exportHistory"),
   clearHistory: $("#clearHistory"),
   reprocessButton: $("#reprocessButton"),
   dictionaryForm: $("#dictionaryForm"),
@@ -66,12 +97,18 @@ const elements = {
   microphone: $("#microphoneSelect"),
   language: $("#languageSelect"),
   whisperProfile: $("#whisperProfile"),
+  inferenceDevice: $("#inferenceDevice"),
   deliveryMode: $("#deliveryMode"),
   appendSpace: $("#appendSpace"),
   cleanupText: $("#cleanupText"),
   dictionaryEnabled: $("#dictionaryEnabled"),
   historyLimit: $("#historyLimit"),
+  autoStopEnabled: $("#autoStopEnabled"),
+  silenceTimeout: $("#silenceTimeout"),
+  autoStartEnabled: $("#autoStartEnabled"),
   closeBehavior: $("#closeBehavior"),
+  recordShortcut: $("#recordShortcut"),
+  reprocessShortcut: $("#reprocessShortcut"),
   guideVisual: $("#guideVisual"),
   guideCount: $("#guideCount"),
   guideTitle: $("#guideTitle"),
@@ -81,6 +118,8 @@ const elements = {
   guideNext: $("#guideNext"),
   diagnosticsButton: $("#diagnosticsButton"),
   repairModelsButton: $("#repairModelsButton"),
+  performanceSummary: $("#performanceSummary"),
+  performanceDetails: $("#performanceDetails"),
   toast: $("#toast")
 };
 
@@ -96,7 +135,19 @@ const guideSlides = [
 ];
 
 function saveSettings() {
-  localStorage.setItem("voice-settings", JSON.stringify(settings));
+  persistState();
+}
+
+function persistState() {
+  const snapshot = {
+    settings: { ...settings },
+    history: history.map((item) => ({ ...item })),
+    dictionary: [...dictionary],
+    microphone: persistedMicrophone
+  };
+  persistQueue = persistQueue.then(() => voiceAPI.writeState(snapshot)).catch((error) => {
+    console.error("Could not persist local state:", error);
+  });
 }
 
 function showToast(message) {
@@ -146,10 +197,24 @@ function createWaveform() {
   }
 }
 
+async function releaseAudioCapture() {
+  audioSource?.disconnect();
+  captureNode?.disconnect();
+  silentGain?.disconnect();
+  mediaStream?.getTracks().forEach((track) => track.stop());
+  await audioContext?.close();
+  mediaStream = undefined;
+  audioContext = undefined;
+  audioSource = undefined;
+  captureNode = undefined;
+  silentGain = undefined;
+  voiceActivityDetector = undefined;
+}
+
 async function updateMicrophones() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   const microphones = devices.filter((device) => device.kind === "audioinput");
-  const selected = localStorage.getItem("voice-microphone") || "";
+  const selected = persistedMicrophone;
   elements.microphone.innerHTML = '<option value="">Micrófono predeterminado</option>';
   microphones.forEach((microphone, index) => {
     const option = document.createElement("option");
@@ -169,18 +234,32 @@ async function beginRecording(source = "button") {
       audio: {
         ...(selectedMicrophone ? { deviceId: { exact: selectedMicrophone } } : {}),
         channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
       }
     });
     await updateMicrophones();
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(mediaStream);
-    mediaRecorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) recordedChunks.push(event.data);
-    });
-    mediaRecorder.start(250);
+    recordedPcmChunks = [];
+    autoStopPending = false;
+    voiceActivityDetector = createVoiceActivityDetector({ silenceTimeoutMs: Number(settings.silenceTimeoutMs) });
+    audioContext = new AudioContext({ sampleRate: 16000, latencyHint: "interactive" });
+    await audioContext.audioWorklet.addModule("src/pcm-capture-worklet.js");
+    audioSource = audioContext.createMediaStreamSource(mediaStream);
+    captureNode = new AudioWorkletNode(audioContext, "nextstepai-pcm-capture");
+    silentGain = audioContext.createGain();
+    silentGain.gain.value = 0;
+    captureNode.port.onmessage = (event) => {
+      if (event.data instanceof Float32Array && event.data.length) {
+        recordedPcmChunks.push(event.data);
+        return;
+      }
+      if (event.data?.type === "level") handleVoiceLevel(event.data.rms);
+    };
+    audioSource.connect(captureNode);
+    captureNode.connect(silentGain);
+    silentGain.connect(audioContext.destination);
+    await audioContext.resume();
     recording = true;
     startedAt = Date.now();
     elements.timer.textContent = "00:00";
@@ -192,36 +271,31 @@ async function beginRecording(source = "button") {
     if (triggerSource === "shortcut") updateOverlay("recording", "Escuchando. Presiona el atajo para convertir.", "00:00");
   } catch (error) {
     console.error(error);
+    await releaseAudioCapture();
     setStatus("idle", "No pudimos acceder al micrófono.");
     showToast(`Micrófono no disponible: ${error.message || error.name}`);
     if (source === "shortcut") finishOverlay("error", "No pudimos acceder al micrófono.");
   }
 }
 
-function resampleAudio(input, inputRate, outputRate = 16000) {
-  if (inputRate === outputRate) return new Float32Array(input);
-  const ratio = inputRate / outputRate;
-  const output = new Float32Array(Math.round(input.length / ratio));
-  for (let index = 0; index < output.length; index += 1) {
-    const start = Math.floor(index * ratio);
-    const end = Math.min(input.length, Math.floor((index + 1) * ratio));
-    let sum = 0;
-    for (let sample = start; sample < end; sample += 1) sum += input[sample];
-    output[index] = sum / Math.max(1, end - start);
-  }
-  return output;
+function handleVoiceLevel(rms) {
+  if (!recording || !settings.autoStopEnabled || autoStopPending) return;
+  if (!voiceActivityDetector?.update(rms)) return;
+  autoStopPending = true;
+  showToast("Silencio detectado. Procesando grabación.");
+  finishRecording();
 }
 
-async function decodeRecording() {
-  const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-  if (!blob.size) throw new Error("El micrófono no produjo datos de audio.");
-  const context = new AudioContext();
-  try {
-    const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-    return resampleAudio(buffer.getChannelData(0), buffer.sampleRate);
-  } finally {
-    await context.close();
+function collectRecording() {
+  const length = recordedPcmChunks.reduce((total, chunk) => total + chunk.length, 0);
+  if (!length) throw new Error("El micrófono no produjo datos de audio.");
+  const samples = new Float32Array(length);
+  let offset = 0;
+  for (const chunk of recordedPcmChunks) {
+    samples.set(chunk, offset);
+    offset += chunk.length;
   }
+  return trimEdgeSilence(resampleAudio(samples, audioContext?.sampleRate || 16000));
 }
 
 function cleanText(text) {
@@ -247,15 +321,22 @@ async function processAudio(audio, source = "button") {
     elements.modelBadge.classList.remove("error");
     elements.modelBadge.innerHTML = "<span></span>Preparando motor local";
     const profile = resolveWhisperProfile(settings.whisperProfile);
-    const rawText = await voiceAPI.transcribe(audio, settings.language, profile.id);
+    const result = await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
+    const rawText = typeof result === "string" ? result : result.text;
     if (!rawText) throw new Error("El motor no devolvió texto.");
     const text = cleanText(rawText);
     if (!text.trim()) throw new Error("No detectamos palabras claras en la grabación.");
     elements.modelBadge.classList.remove("loading", "error");
-    elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} listo`;
+    elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(result.device || "cpu").toUpperCase()}`;
     addHistory(text);
-    await deliverText(text, source);
-    if (source === "shortcut") finishOverlay("success", settings.deliveryMode === "paste-copy" ? "Texto pegado. Continúa escribiendo." : "Transcripción lista.");
+    if (result.metrics) renderPerformance(result.metrics);
+    const delivery = await deliverText(text, source);
+    if (source === "shortcut") {
+      finishOverlay(
+        "success",
+        delivery.pasted ? "Texto pegado. Continúa escribiendo." : "Transcripción copiada al portapapeles."
+      );
+    }
   } catch (error) {
     console.error(error);
     elements.modelBadge.classList.remove("loading");
@@ -269,22 +350,28 @@ async function processAudio(audio, source = "button") {
   }
 }
 
+async function renderPerformance(metrics) {
+  const diagnostics = await voiceAPI.diagnostics();
+  elements.performanceSummary.textContent = `${(metrics.totalMs / 1000).toFixed(1)} s total · ${metrics.realtimeFactor}x tiempo real`;
+  elements.performanceDetails.textContent = `Inferencia ${(metrics.inferenceMs / 1000).toFixed(1)} s · carga ${(metrics.modelLoadMs / 1000).toFixed(1)} s · memoria ${diagnostics.memoryRssMb} MB RSS`;
+}
+
 async function finishRecording() {
   if (!recording) return;
   recording = false;
   processing = true;
   clearInterval(timerInterval);
-  const stopped = new Promise((resolve) => mediaRecorder.addEventListener("stop", resolve, { once: true }));
-  mediaRecorder.stop();
-  await stopped;
-  mediaStream?.getTracks().forEach((track) => track.stop());
+  captureNode?.port.postMessage("flush");
+  await new Promise((resolve) => setTimeout(resolve, 40));
   try {
-    lastAudio = await decodeRecording();
+    lastAudio = collectRecording();
   } catch (error) {
     processing = false;
     setStatus("idle", error.message);
     if (triggerSource === "shortcut") finishOverlay("error", "No pudimos procesar la grabación.");
     return;
+  } finally {
+    await releaseAudioCapture();
   }
   const peak = lastAudio.reduce((maximum, sample) => Math.max(maximum, Math.abs(sample)), 0);
   if (lastAudio.length < 12000) {
@@ -307,29 +394,40 @@ async function deliverText(text, source) {
   if (settings.deliveryMode === "copy" || settings.deliveryMode === "paste-copy") await voiceAPI.copy(text);
   if (settings.deliveryMode === "paste-copy" && source === "shortcut") {
     const pasted = await voiceAPI.paste(text);
-    if (!pasted) throw new Error("Windows no confirmó el pegado en la ventana activa.");
-    showToast("Texto pegado y guardado en el portapapeles.");
+    showToast(pasted
+      ? "Texto pegado y guardado en el portapapeles."
+      : "Windows bloqueó el pegado. El texto quedó seguro en el portapapeles.");
+    return { pasted };
   } else if (settings.deliveryMode === "copy") {
     showToast("Texto guardado en el portapapeles.");
   } else {
     showToast("Transcripción lista.");
   }
+  return { pasted: false };
 }
 
 function addHistory(text) {
   history.unshift({ id: crypto.randomUUID(), text, at: new Date().toISOString() });
   history = history.slice(0, Number(settings.historyLimit));
-  localStorage.setItem("voice-history", JSON.stringify(history));
+  persistState();
   renderHistory();
 }
 
 function renderHistory() {
   elements.historyList.innerHTML = "";
-  if (!history.length) {
+  const query = elements.historySearch.value.trim().toLocaleLowerCase();
+  const visibleHistory = query
+    ? history.filter((item) => item.text.toLocaleLowerCase().includes(query))
+    : history;
+  if (!visibleHistory.length) {
+    if (query) {
+      elements.historyList.innerHTML = '<div class="empty-state"><span>Búsqueda local</span><h3>No encontramos coincidencias.</h3><p>Prueba con otra palabra o frase.</p></div>';
+      return;
+    }
     elements.historyList.innerHTML = '<div class="empty-state"><span>Archivo local</span><h3>Aún no hay transcripciones.</h3><p>Tu primera idea convertida en texto aparecerá aquí.</p></div>';
     return;
   }
-  history.forEach((item, index) => {
+  visibleHistory.forEach((item, index) => {
     const article = document.createElement("article");
     const date = new Date(item.at);
     article.className = "history-item";
@@ -342,7 +440,7 @@ function renderHistory() {
     });
     article.querySelector(".history-delete").addEventListener("click", () => {
       history = history.filter((entry) => entry.id !== item.id);
-      localStorage.setItem("voice-history", JSON.stringify(history));
+      persistState();
       renderHistory();
     });
     elements.historyList.appendChild(article);
@@ -362,7 +460,7 @@ function renderDictionary() {
     row.querySelector("strong").textContent = term;
     row.querySelector("button").addEventListener("click", () => {
       dictionary = dictionary.filter((item) => item !== term);
-      localStorage.setItem("voice-dictionary", JSON.stringify(dictionary));
+      persistState();
       renderDictionary();
     });
     elements.dictionaryList.appendChild(row);
@@ -384,12 +482,21 @@ async function hydrateSettings() {
   const profile = resolveWhisperProfile(settings.whisperProfile);
   elements.language.value = settings.language;
   elements.whisperProfile.value = profile.id;
+  elements.inferenceDevice.value = settings.inferenceDevice;
   elements.modelBadge.innerHTML = `<span></span>${profile.label} seleccionado`;
   elements.deliveryMode.value = settings.deliveryMode;
   elements.appendSpace.checked = settings.appendSpace;
   elements.cleanupText.checked = settings.cleanupText;
   elements.dictionaryEnabled.checked = settings.dictionaryEnabled;
   elements.historyLimit.value = String(settings.historyLimit);
+  elements.autoStopEnabled.checked = settings.autoStopEnabled;
+  elements.silenceTimeout.value = String(settings.silenceTimeoutMs);
+  const shortcuts = await voiceAPI.getShortcuts();
+  elements.recordShortcut.value = shortcuts.record;
+  elements.reprocessShortcut.value = shortcuts.reprocess;
+  settings.autoStartEnabled = await voiceAPI.getAutoStart();
+  elements.autoStartEnabled.checked = settings.autoStartEnabled;
+  saveSettings();
   elements.closeBehavior.value = await voiceAPI.getCloseBehavior();
 }
 
@@ -404,34 +511,47 @@ elements.recordButton.addEventListener("click", () => toggleRecording("button"))
 elements.reprocessButton.addEventListener("click", () => processAudio(lastAudio, "button"));
 elements.clearHistory.addEventListener("click", () => {
   history = [];
-  localStorage.removeItem("voice-history");
+  persistState();
   renderHistory();
+});
+elements.historySearch.addEventListener("input", renderHistory);
+elements.exportHistory.addEventListener("click", async () => {
+  if (!history.length) {
+    showToast("Aún no hay transcripciones para exportar.");
+    return;
+  }
+  const exported = await voiceAPI.exportHistory(history);
+  showToast(exported ? "Historial exportado." : "Exportación cancelada.");
 });
 elements.dictionaryForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const term = elements.dictionaryInput.value.trim();
   if (!term || dictionary.some((item) => item.toLocaleLowerCase() === term.toLocaleLowerCase())) return;
   dictionary.unshift(term);
-  localStorage.setItem("voice-dictionary", JSON.stringify(dictionary));
+  persistState();
   elements.dictionaryInput.value = "";
   renderDictionary();
   showToast("Término añadido al diccionario.");
 });
 elements.microphone.addEventListener("change", () => {
-  localStorage.setItem("voice-microphone", elements.microphone.value);
+  persistedMicrophone = elements.microphone.value;
+  persistState();
   showToast("Micrófono seleccionado.");
 });
 [
   ["language", elements.language],
   ["whisperProfile", elements.whisperProfile],
+  ["inferenceDevice", elements.inferenceDevice],
   ["deliveryMode", elements.deliveryMode],
   ["appendSpace", elements.appendSpace],
   ["cleanupText", elements.cleanupText],
   ["dictionaryEnabled", elements.dictionaryEnabled],
-  ["historyLimit", elements.historyLimit]
+  ["historyLimit", elements.historyLimit],
+  ["autoStopEnabled", elements.autoStopEnabled],
+  ["silenceTimeoutMs", elements.silenceTimeout]
 ].forEach(([key, control]) => control.addEventListener("change", () => {
   settings[key] = control.type === "checkbox" ? control.checked : control.value;
-  if (key === "historyLimit") settings[key] = Number(settings[key]);
+  if (key === "historyLimit" || key === "silenceTimeoutMs") settings[key] = Number(settings[key]);
   saveSettings();
   if (key === "whisperProfile") {
     const profile = resolveWhisperProfile(settings.whisperProfile);
@@ -440,7 +560,7 @@ elements.microphone.addEventListener("change", () => {
   }
   if (key === "historyLimit") {
     history = history.slice(0, settings.historyLimit);
-    localStorage.setItem("voice-history", JSON.stringify(history));
+    persistState();
     renderHistory();
   }
   showToast("Preferencia guardada.");
@@ -463,7 +583,17 @@ elements.diagnosticsButton.addEventListener("click", async () => {
     `Model status: ${elements.modelBadge.textContent.trim()}`,
     `Whisper profile selected: ${resolveWhisperProfile(settings.whisperProfile).shortLabel}`,
     `Whisper profile loaded: ${diagnostics.loadedWhisperProfile}`,
+    `Inference device: ${diagnostics.inferenceDevice}`,
+    `Requested inference device: ${diagnostics.requestedInferenceDevice}`,
+    `Last device fallback: ${diagnostics.lastDeviceFallback || "none"}`,
     `Model cache: ${diagnostics.modelCacheMb} MB`,
+    `Memory RSS: ${diagnostics.memoryRssMb} MB`,
+    `Heap used: ${diagnostics.heapUsedMb} MB`,
+    `Record shortcut: ${diagnostics.shortcuts.record}`,
+    `Reprocess shortcut: ${diagnostics.shortcuts.reprocess}`,
+    `Last transcription metrics: ${JSON.stringify(diagnostics.lastTranscriptionMetrics || null)}`,
+    `State schema: ${diagnostics.stateSchemaVersion}`,
+    `State path: ${diagnostics.statePath}`,
     `Microphone configured: ${Boolean(elements.microphone.value)}`,
     `Dictionary terms: ${dictionary.length}`,
     `History entries: ${history.length}`
@@ -495,10 +625,54 @@ elements.closeBehavior.addEventListener("change", async () => {
   await voiceAPI.setCloseBehavior(elements.closeBehavior.value);
   showToast("Comportamiento de cierre guardado.");
 });
+elements.autoStartEnabled.addEventListener("change", async () => {
+  const requested = elements.autoStartEnabled.checked;
+  try {
+    settings.autoStartEnabled = await voiceAPI.setAutoStart(requested);
+    elements.autoStartEnabled.checked = settings.autoStartEnabled;
+    saveSettings();
+    showToast(settings.autoStartEnabled ? "Inicio con Windows activado." : "Inicio con Windows desactivado.");
+  } catch (error) {
+    elements.autoStartEnabled.checked = settings.autoStartEnabled;
+    showToast(`No fue posible cambiar el inicio con Windows: ${error.message || error}`);
+  }
+});
+async function updateShortcuts() {
+  const requested = {
+    record: elements.recordShortcut.value,
+    reprocess: elements.reprocessShortcut.value
+  };
+  try {
+    const applied = await voiceAPI.setShortcuts(requested);
+    elements.recordShortcut.value = applied.record;
+    elements.reprocessShortcut.value = applied.reprocess;
+    showToast("Atajos globales actualizados.");
+  } catch (error) {
+    const current = await voiceAPI.getShortcuts();
+    elements.recordShortcut.value = current.record;
+    elements.reprocessShortcut.value = current.reprocess;
+    showToast(error.message || "No fue posible registrar los atajos.");
+  }
+}
+elements.recordShortcut.addEventListener("change", updateShortcuts);
+elements.reprocessShortcut.addEventListener("change", updateShortcuts);
 
 voiceAPI.onShortcutToggle(() => toggleRecording("shortcut"));
 voiceAPI.onReprocess(() => processAudio(lastAudio, "shortcut"));
 voiceAPI.onShortcutError(() => showToast("Un acceso directo ya está siendo usado por otra aplicación."));
+voiceAPI.onNavigate((panel) => switchPanel(panel));
+voiceAPI.onPasteLast(async () => {
+  if (!history.length) {
+    showToast("Aún no hay transcripciones para pegar.");
+    return;
+  }
+  try {
+    await voiceAPI.paste(history[0].text);
+    showToast("Última transcripción pegada.");
+  } catch (error) {
+    showToast(`No fue posible pegar la transcripción: ${error.message || error}`);
+  }
+});
 voiceAPI.onModelProgress((progress) => {
   if (progress.status !== "progress" || !Number.isFinite(progress.progress)) return;
   const percent = Math.max(0, Math.min(100, Math.round(progress.progress)));
@@ -506,10 +680,28 @@ voiceAPI.onModelProgress((progress) => {
   elements.stateLabel.textContent = `Preparando ${progress.label || "el motor local"} por primera vez: ${percent}%`;
 });
 
-createWaveform();
-hydrateSettings().catch(() => {});
-renderHistory();
-renderDictionary();
-renderGuide();
-updateMicrophones().catch(() => {});
-setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");
+async function initializeApp() {
+  await voiceAPI.migrateLegacyState(legacyState);
+  const persisted = await voiceAPI.getState();
+  settings = { ...defaults, ...persisted.settings };
+  history = persisted.history.map((item) => ({ ...item, id: item.id || crypto.randomUUID() }));
+  dictionary = persisted.dictionary;
+  persistedMicrophone = persisted.microphone;
+  localStorage.removeItem("voice-settings");
+  localStorage.removeItem("voice-history");
+  localStorage.removeItem("voice-dictionary");
+  localStorage.removeItem("voice-microphone");
+
+  createWaveform();
+  await hydrateSettings();
+  renderHistory();
+  renderDictionary();
+  renderGuide();
+  await updateMicrophones();
+  setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");
+}
+
+initializeApp().catch((error) => {
+  console.error("Could not initialize application state:", error);
+  showToast("No fue posible cargar los datos locales.");
+});

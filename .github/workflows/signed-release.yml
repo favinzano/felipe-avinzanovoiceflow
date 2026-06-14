@@ -6,14 +6,12 @@ on:
 jobs:
   build-sign-verify:
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_SIGNING_PUBLISHER_NAME: ${{ vars.AZURE_SIGNING_PUBLISHER_NAME }}
-      AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-      AZURE_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_SIGNING_ACCOUNT_NAME }}
-      AZURE_SIGNING_PROFILE_NAME: ${{ vars.AZURE_SIGNING_PROFILE_NAME }}
+      TESTING_REMOTELY: "true"
+      SIGNING_PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+      SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+      SIGNING_TIMESTAMP_URL: http://timestamp.digicert.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,8 +21,13 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:production
+      - run: npm run test:models
+      - run: npm run release:verify-acceptance
       - run: npm run release:signed
       - uses: actions/upload-artifact@v4
         with:
           name: nextstepai-voice-windows-signed
-          path: release/NextStepAI-Voice-Setup-*.exe
+          path: |
+            release/NextStepAI-Voice-Setup-*.exe
+            release/NextStepAI-Voice-Setup-*.exe.blockmap
+            release/latest.yml

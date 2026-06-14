@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cases": [
+    { "id": "win10-low-integrated-caribbean-quiet", "windows": "Windows 10 x64", "hardware": "CPU baja / 8 GB", "microphone": "Integrado", "accent": "Español caribeño", "environment": "Silencioso", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win10-low-usb-mexican-office", "windows": "Windows 10 x64", "hardware": "CPU baja / 8 GB", "microphone": "USB", "accent": "Español mexicano", "environment": "Oficina", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win10-mid-bluetooth-southamerican-noise", "windows": "Windows 10 x64", "hardware": "CPU media / 16 GB", "microphone": "Bluetooth", "accent": "Español sudamericano", "environment": "Ruido moderado", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win10-high-usb-peninsular-quiet", "windows": "Windows 10 x64", "hardware": "CPU alta / 32 GB", "microphone": "USB", "accent": "Español peninsular", "environment": "Silencioso", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win10-mid-integrated-mexican-office", "windows": "Windows 10 x64", "hardware": "CPU media / 16 GB", "microphone": "Integrado", "accent": "Español mexicano", "environment": "Oficina", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win10-high-bluetooth-caribbean-noise", "windows": "Windows 10 x64", "hardware": "CPU alta / 32 GB", "microphone": "Bluetooth", "accent": "Español caribeño", "environment": "Ruido moderado", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-low-integrated-southamerican-quiet", "windows": "Windows 11 x64", "hardware": "CPU baja / 8 GB", "microphone": "Integrado", "accent": "Español sudamericano", "environment": "Silencioso", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-low-bluetooth-peninsular-office", "windows": "Windows 11 x64", "hardware": "CPU baja / 8 GB", "microphone": "Bluetooth", "accent": "Español peninsular", "environment": "Oficina", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-mid-usb-caribbean-noise", "windows": "Windows 11 x64", "hardware": "CPU media / 16 GB", "microphone": "USB", "accent": "Español caribeño", "environment": "Ruido moderado", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-high-integrated-mexican-quiet", "windows": "Windows 11 x64", "hardware": "CPU alta / 32 GB", "microphone": "Integrado", "accent": "Español mexicano", "environment": "Silencioso", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-mid-bluetooth-peninsular-office", "windows": "Windows 11 x64", "hardware": "CPU media / 16 GB", "microphone": "Bluetooth", "accent": "Español peninsular", "environment": "Oficina", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" },
+    { "id": "win11-high-usb-southamerican-noise", "windows": "Windows 11 x64", "hardware": "CPU alta / 32 GB", "microphone": "USB", "accent": "Español sudamericano", "environment": "Ruido moderado", "status": "pending", "wer": null, "pasteSuccess": false, "notes": "" }
+  ]
+}

@@ -4,12 +4,13 @@ $installer = Get-ChildItem "release\NextStepAI-Voice-Setup-*.exe" |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 1
 $application = Get-Item "release\win-unpacked\NextStepAI Voice.exe"
+$pasteHelper = Get-Item "release\win-unpacked\resources\native\win32-x64\NextStepAI.PasteHelper.exe"
 
 if (-not $installer) {
   throw "No se encontro un instalador para verificar."
 }
 
-foreach ($artifact in @($installer, $application)) {
+foreach ($artifact in @($installer, $application, $pasteHelper)) {
   $signature = Get-AuthenticodeSignature -FilePath $artifact.FullName
   if ($signature.Status -ne "Valid") {
     throw "Firma Authenticode invalida para $($artifact.Name): $($signature.Status)"
