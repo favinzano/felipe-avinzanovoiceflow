@@ -196,6 +196,7 @@ try {
       "electron-builder",
       "--win", "nsis",
       "--x64",
+      "--publish", "never",
       "--config.win.artifactName=$artifactName",
       "--config.win.signtoolOptions.signingHashAlgorithms=sha256",
       "--config.win.signtoolOptions.rfc3161TimeStampServer=$TimestampUrl"

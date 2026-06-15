@@ -100,7 +100,7 @@ jobs:
       - name: Package ${{ matrix.target }} installer
         shell: pwsh
         run: |
-          npx electron-builder --win nsis --x64 "--config.win.artifactName=$env:INSTALLER_NAME"
+          npx electron-builder --win nsis --x64 --publish never "--config.win.artifactName=$env:INSTALLER_NAME"
           if ($LASTEXITCODE -ne 0) {
             throw "electron-builder fallo para el target ${{ matrix.target }}."
           }
