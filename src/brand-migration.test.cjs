@@ -305,6 +305,49 @@ async function run() {
   await sandbox(async (appDataPath) => {
     const source = path.join(appDataPath, "Legacy");
     const target = path.join(appDataPath, "VoiceFlow");
+    const destinationModels = path.join(target, "models");
+    const outside = path.join(appDataPath, "outside-swap");
+    const sourceModel = path.join(source, "models", "swapped.bin");
+    await json(path.join(source, "voice-state.json"), { valid: true });
+    await fs.mkdir(path.dirname(sourceModel), { recursive: true });
+    await fs.writeFile(sourceModel, "source-unchanged");
+    await fs.mkdir(destinationModels, { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    let swapped = false;
+
+    const result = await migrateBrandData({
+      appDataPath,
+      targetName: "VoiceFlow",
+      legacyNames: ["Legacy"],
+      operations: {
+        copyFile: async (from, to, flags) => {
+          if (from === sourceModel && !swapped) {
+            swapped = true;
+            await fs.rm(destinationModels, { recursive: true });
+            await fs.symlink(
+              outside,
+              destinationModels,
+              process.platform === "win32" ? "junction" : "dir"
+            );
+          }
+          return fs.copyFile(from, to, flags);
+        }
+      }
+    });
+
+    assert.equal(result.status, "fallback");
+    assert.equal(await present(migrationMarkerPath(target)), false);
+    assert.deepEqual(await fs.readdir(outside), []);
+    assert.equal(await fs.readFile(sourceModel, "utf8"), "source-unchanged");
+    assert.equal(
+      (await fs.readdir(target)).some((entry) => entry.startsWith(".voiceflow-migration-")),
+      false
+    );
+  });
+
+  await sandbox(async (appDataPath) => {
+    const source = path.join(appDataPath, "Legacy");
+    const target = path.join(appDataPath, "VoiceFlow");
     await json(path.join(source, "voice-state.json"), { concurrent: true });
     const waitForBothMarkers = barrier(2);
     const markerTemps = [];

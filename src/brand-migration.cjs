@@ -6,6 +6,10 @@ const path = require("node:path");
 const MARKER_NAME = ".voiceflow-brand-migration-v1.json";
 const MIGRATION_ENTRIES = ["voice-state.json", "app-preferences.json", "models", "Local Storage", "IndexedDB"];
 
+// Threat model: links present or swapped during staging/revalidation are rejected. A truly
+// adversarial same-user replacement in the final syscall gap cannot be prevented with Node's
+// path-based filesystem APIs and is intentionally out of scope.
+
 function migrationMarkerPath(targetPath) {
   return path.join(targetPath, MARKER_NAME);
 }
@@ -135,36 +139,58 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
   const operations = createOperations(overrides);
   const targetPath = path.join(appDataPath, targetName);
   const markerPath = migrationMarkerPath(targetPath);
-  const tempPaths = new Set();
   let sourcePath;
   let tempSequence = 0;
   let invocationToken;
+  let stagingPath;
+  let stagingCreated = false;
 
-  const cleanupTemp = async (tempPath) => {
-    tempPaths.delete(tempPath);
+  const validateStagingDirectory = async () => {
+    assertSafeEntry(await operations.lstat(targetPath), targetPath, "directory");
+    assertSafeEntry(await operations.lstat(stagingPath), stagingPath, "directory");
+  };
+
+  const ensureStagingDirectory = async () => {
+    if (stagingCreated) {
+      await validateStagingDirectory();
+      return;
+    }
+    await ensureSafeDirectory(targetPath, targetPath, operations);
+    stagingPath = path.join(targetPath, `.voiceflow-migration-${invocationToken}.staging`);
+    await operations.mkdir(stagingPath);
+    stagingCreated = true;
+    await validateStagingDirectory();
+  };
+
+  const cleanupStagingDirectory = async () => {
+    if (!stagingCreated) return;
     try {
-      await operations.rm(tempPath, { force: true });
+      const targetInfo = await lstatIfExists(targetPath, operations);
+      if (!targetInfo) return;
+      assertSafeEntry(targetInfo, targetPath, "directory");
+      const stagingInfo = await lstatIfExists(stagingPath, operations);
+      if (!stagingInfo || stagingInfo.isSymbolicLink() || !stagingInfo.isDirectory()) return;
+      await operations.rm(stagingPath, { force: true, recursive: true });
     } catch {
-      // Best effort: a later migration uses a distinct temporary name.
+      // Best effort only; never follow a replaced target or staging link during cleanup.
     }
   };
 
   const atomicCopy = async (from, to) => {
     if (await regularFileExists(to, operations)) return;
+    await ensureStagingDirectory();
+    const tempPath = path.join(stagingPath, `${++tempSequence}.data.tmp`);
+    await operations.copyFile(from, tempPath, constants.COPYFILE_EXCL);
+    assertSafeEntry(await operations.lstat(tempPath), tempPath, "file");
+    await validateStagingDirectory();
     await ensureSafeDirectory(targetPath, path.dirname(to), operations);
-    const tempPath = `${to}.voiceflow-migration-${invocationToken}-${++tempSequence}.tmp`;
-    tempPaths.add(tempPath);
     try {
-      await operations.copyFile(from, tempPath, constants.COPYFILE_EXCL);
-      try {
-        await operations.link(tempPath, to);
-      } catch (error) {
-        if (!error || error.code !== "EEXIST") throw error;
-      }
-      await cleanupTemp(tempPath);
+      await operations.link(tempPath, to);
     } catch (error) {
-      await cleanupTemp(tempPath);
-      throw error;
+      if (!error || error.code !== "EEXIST") throw error;
+      if (!(await regularFileExists(to, operations))) {
+        throw new Error(`Migration destination conflict is not a regular file: ${to}`);
+      }
     }
   };
 
@@ -226,14 +252,16 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
       if (await lstatIfExists(from, operations)) await copyTree(from, path.join(targetPath, entry));
     }
 
-    await ensureSafeDirectory(targetPath, targetPath, operations);
-    const markerTemp = `${markerPath}.voiceflow-migration-${invocationToken}-${++tempSequence}.tmp`;
-    tempPaths.add(markerTemp);
+    await ensureStagingDirectory();
+    const markerTemp = path.join(stagingPath, `${MARKER_NAME}.${++tempSequence}.tmp`);
     await operations.writeFile(
       markerTemp,
       JSON.stringify({ sourcePath, completedAt: new Date(operations.now()).toISOString() }, null, 2),
       { encoding: "utf8", flag: "wx" }
     );
+    assertSafeEntry(await operations.lstat(markerTemp), markerTemp, "file");
+    await validateStagingDirectory();
+    await ensureSafeDirectory(targetPath, targetPath, operations);
     try {
       await operations.link(markerTemp, markerPath);
     } catch (error) {
@@ -242,13 +270,13 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
         throw new Error(`Brand migration marker disappeared during publication: ${markerPath}`);
       }
       await readValidMarker(markerPath, operations);
-      await cleanupTemp(markerTemp);
+      await cleanupStagingDirectory();
       return { status: "already-migrated", targetPath };
     }
-    await cleanupTemp(markerTemp);
+    await cleanupStagingDirectory();
     return { status: "migrated", sourcePath, targetPath };
   } catch (error) {
-    await Promise.all([...tempPaths].map(cleanupTemp));
+    await cleanupStagingDirectory();
     return { status: "fallback", sourcePath, targetPath, error: toError(error) };
   }
 }
