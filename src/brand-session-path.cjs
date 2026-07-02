@@ -1,5 +1,5 @@
 const fs = require("node:fs");
-const { migrationMarkerPath } = require("./brand-migration.cjs");
+const { migrationMarkerPath, parseValidMigrationMarker } = require("./brand-migration.cjs");
 
 function lstatIfExists(filePath, lstatSync) {
   try {
@@ -26,7 +26,14 @@ function prepareBrandElectronPaths({ targetPath, legacyPaths, operations = fs })
 
   const marker = lstatIfExists(migrationMarkerPath(targetPath), operations.lstatSync);
   if (marker?.isFile() && !marker.isSymbolicLink()) {
-    return { userDataPath: targetPath, sessionDataPath: targetPath, existingLegacyDataPath: undefined };
+    const markerPath = migrationMarkerPath(targetPath);
+    const contents = operations.readFileSync(markerPath, "utf8");
+    try {
+      parseValidMigrationMarker(contents, markerPath);
+      return { userDataPath: targetPath, sessionDataPath: targetPath, existingLegacyDataPath: undefined };
+    } catch {
+      // Invalid marker contents are incomplete; a safe legacy session remains authoritative.
+    }
   }
 
   for (const legacyPath of legacyPaths) {

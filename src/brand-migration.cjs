@@ -79,8 +79,7 @@ async function assertValidJson(filePath, operations, description) {
   }
 }
 
-async function readValidMarker(markerPath, operations) {
-  const contents = await operations.readFile(markerPath, "utf8");
+function parseValidMigrationMarker(contents, markerPath) {
   let marker;
   try {
     marker = JSON.parse(contents);
@@ -91,6 +90,11 @@ async function readValidMarker(markerPath, operations) {
     throw new Error(`Brand migration marker is invalid: ${markerPath}`);
   }
   return marker;
+}
+
+async function readValidMarker(markerPath, operations) {
+  const contents = await operations.readFile(markerPath, "utf8");
+  return parseValidMigrationMarker(contents, markerPath);
 }
 
 function toError(value) {
@@ -284,6 +288,7 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
 module.exports = {
   migrateBrandData,
   migrationMarkerPath,
+  parseValidMigrationMarker,
   sameMigrationPath,
   selectStateSource
 };

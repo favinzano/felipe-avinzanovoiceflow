@@ -18,14 +18,20 @@ function deniedError() {
   return Object.assign(new Error("denied"), { code: "EACCES" });
 }
 
-function fakeOperations(initialEntries = []) {
+function fakeOperations(initialEntries = [], initialContents = []) {
   const entries = new Map(initialEntries);
+  const contents = new Map(initialContents);
   const mkdirCalls = [];
   return {
     entries,
     mkdirCalls,
     lstatSync(filePath) {
       if (entries.has(filePath)) return entries.get(filePath);
+      throw missingError();
+    },
+    readFileSync(filePath, encoding) {
+      assert.equal(encoding, "utf8");
+      if (contents.has(filePath)) return contents.get(filePath);
       throw missingError();
     },
     mkdirSync(filePath, options) {
@@ -59,10 +65,37 @@ const markerPath = path.join(targetPath, ".voiceflow-brand-migration-v1.json");
 }
 
 {
-  const operations = fakeOperations([[targetPath, directory], [legacyPath, directory], [markerPath, regularFile]]);
+  const validMarker = JSON.stringify({ sourcePath: legacyPath, completedAt: "2026-07-02T12:00:00.000Z" });
+  const operations = fakeOperations(
+    [[targetPath, directory], [legacyPath, directory], [markerPath, regularFile]],
+    [[markerPath, validMarker]]
+  );
   const result = prepareBrandElectronPaths({ targetPath, legacyPaths: [legacyPath], operations });
   assert.equal(result.userDataPath, targetPath, "marker does not change singleton identity");
   assert.equal(result.sessionDataPath, targetPath, "marker moves the next Chromium session to target");
+}
+
+for (const [description, markerContents] of [
+  ["malformed JSON", "{not-json"],
+  ["invalid schema", JSON.stringify({ sourcePath: legacyPath, completedAt: "not-a-date" })]
+]) {
+  const operations = fakeOperations(
+    [[targetPath, directory], [legacyPath, directory], [markerPath, regularFile]],
+    [[markerPath, markerContents]]
+  );
+  const result = prepareBrandElectronPaths({ targetPath, legacyPaths: [legacyPath], operations });
+  assert.equal(result.sessionDataPath, legacyPath, `${description} marker remains on legacy sessionData`);
+  assert.equal(result.existingLegacyDataPath, legacyPath, `${description} marker retains fallback source`);
+}
+
+{
+  const operations = fakeOperations([[targetPath, directory], [legacyPath, directory], [markerPath, regularFile]]);
+  operations.readFileSync = () => { throw deniedError(); };
+  assert.throws(
+    () => prepareBrandElectronPaths({ targetPath, legacyPaths: [legacyPath], operations }),
+    (error) => error.code === "EACCES",
+    "unexpected marker read failure aborts bootstrap"
+  );
 }
 
 for (const [description, unsafeTarget] of [
