@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const brand = require("./brand-config.cjs");
+
+const rendererBrand = Object.freeze({
+  displayName: brand.displayName,
+  baseName: brand.baseName,
+  suffix: brand.suffix,
+  copper: brand.copper
+});
 
 contextBridge.exposeInMainWorld("voiceAPI", {
+  brand: rendererBrand,
   runtime: { isPackaged: !process.defaultApp },
   copy: (text) => ipcRenderer.invoke("clipboard:write", text),
   paste: (text) => ipcRenderer.invoke("clipboard:paste", text),

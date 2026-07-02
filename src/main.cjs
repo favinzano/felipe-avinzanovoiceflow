@@ -4,6 +4,8 @@ const fs = require("fs/promises");
 const fsSync = require("fs");
 const path = require("path");
 const { execFile, spawn } = require("child_process");
+const brand = require("./brand-config.cjs");
+const { migrateBrandData } = require("./brand-migration.cjs");
 const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
@@ -51,18 +53,61 @@ let taskbarIcons;
 let lastModelLoadMs;
 let lastTranscriptionMetrics;
 let lastDeviceFallback;
+let brandMigration = { status: "pending" };
+let bootstrapComplete = false;
+let pendingShowMainWindow = false;
 const startHidden = process.argv.includes("--hidden");
 const allowTestInstance = process.argv.includes("--allow-test-instance");
 
-app.setName("NextStepAI Voice");
-if (!app.isPackaged) {
-  app.setPath("userData", path.join(app.getPath("appData"), "NextStepAI Voice Development"));
-}
-if (process.platform === "win32") app.setAppUserModelId("com.nextstepai.voice");
+app.setName(brand.displayName);
+const appDataPath = app.getPath("appData");
+const targetUserDataName = app.isPackaged ? brand.displayName : brand.developmentName;
+const targetUserDataPath = path.join(appDataPath, targetUserDataName);
+const legacyUserDataNames = brand.legacyDataNames.filter((name) => {
+  return app.isPackaged ? !name.endsWith(" Development") : name.endsWith(" Development");
+});
+const existingLegacyUserDataPath = legacyUserDataNames
+  .map((name) => path.join(appDataPath, name))
+  .find((candidate) => {
+    try {
+      const info = fsSync.lstatSync(candidate);
+      return info.isDirectory() && !info.isSymbolicLink();
+    } catch {
+      return false;
+    }
+  });
+let activeUserDataPath = targetUserDataPath;
+
+app.setPath("userData", targetUserDataPath);
+if (process.platform === "win32") app.setAppUserModelId(brand.appId);
 const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
+const migrationResultUsesTarget = (result) => {
+  return ["migrated", "not-needed", "already-migrated"].includes(result.status);
+};
+const migrationPromise = hasSingleInstanceLock
+  ? migrateBrandData({
+      appDataPath,
+      targetName: targetUserDataName,
+      legacyNames: legacyUserDataNames
+    }).catch(() => ({
+      status: "fallback",
+      sourcePath: existingLegacyUserDataPath,
+      targetPath: targetUserDataPath
+    })).then((result) => {
+      activeUserDataPath = migrationResultUsesTarget(result)
+        ? targetUserDataPath
+        : result.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
+      app.setPath("userData", activeUserDataPath);
+      return result;
+    })
+  : Promise.resolve({ status: "not-needed", targetPath: targetUserDataPath });
 
 app.on("second-instance", () => {
+  if (!bootstrapComplete) {
+    pendingShowMainWindow = true;
+    return;
+  }
   showMainWindow();
 });
 
@@ -208,7 +253,7 @@ function configureAutoStart(enabled) {
 }
 
 function initializeAutoStart() {
-  const userDataPath = app.getPath("userData");
+  const userDataPath = activeUserDataPath;
   const isFirstLaunch = !hasAutoStartPreference(userDataPath);
   const enabled = getAutoStartEnabled(userDataPath);
   const applied = configureAutoStart(enabled);
@@ -353,9 +398,9 @@ function registerGlobalShortcuts(shortcuts, mode = activeShortcutMode) {
 function createTray() {
   const trayImage = nativeImage.createFromPath(path.join(__dirname, "..", "assets", "app-icon-32.png"));
   tray = new Tray(trayImage.resize({ width: 16, height: 16 }));
-  tray.setToolTip("NextStepAI Voice");
+  tray.setToolTip(brand.displayName);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `NextStepAI Voice v${app.getVersion()}`, enabled: false },
+    { label: `${brand.displayName} v${app.getVersion()}`, enabled: false },
     { type: "separator" },
     { label: "Inicio", click: () => showMainWindow("home") },
     { label: "Buscar actualizaciones...", click: () => checkForUpdates(true) },
@@ -363,7 +408,7 @@ function createTray() {
     { type: "separator" },
     {
       label: "Enviar comentarios...",
-      click: () => shell.openExternal("https://github.com/favinzano/nextstepai-voice/issues")
+      click: () => shell.openExternal(brand.issueUrl)
     },
     { type: "separator" },
     {
@@ -391,7 +436,7 @@ function configureAutoUpdater() {
     manualUpdateCheck = false;
     dialog.showMessageBox({
       type: "info",
-      title: "NextStepAI Voice está actualizado",
+      title: `${brand.displayName} está actualizado`,
       message: `Ya tienes la versión más reciente (${app.getVersion()}).`
     });
   });
@@ -443,7 +488,7 @@ async function handleWindowClose(event) {
   event.preventDefault();
   if (closeDialogOpen) return;
 
-  const behavior = getCloseBehavior(app.getPath("userData"));
+  const behavior = getCloseBehavior(activeUserDataPath);
   if (behavior === "tray") {
     hideToTray();
     return;
@@ -458,10 +503,10 @@ async function handleWindowClose(event) {
   try {
     const choice = await dialog.showMessageBox(mainWindow, {
       type: "question",
-      title: "Cerrar NextStepAI Voice",
+      title: `Cerrar ${brand.displayName}`,
       message: "¿Qué quieres hacer al cerrar la ventana?",
       detail: "Ocultarla en la bandeja mantiene disponibles el dictado y los atajos globales.",
-      buttons: ["Ocultar en la bandeja", "Salir de NextStepAI Voice", "Cancelar"],
+      buttons: ["Ocultar en la bandeja", `Salir de ${brand.displayName}`, "Cancelar"],
       defaultId: 0,
       cancelId: 2,
       checkboxLabel: "Recordar mi elección",
@@ -469,7 +514,7 @@ async function handleWindowClose(event) {
     });
     if (choice.response === 2) return;
     const selectedBehavior = choice.response === 0 ? "tray" : "exit";
-    if (choice.checkboxChecked) setCloseBehavior(app.getPath("userData"), selectedBehavior);
+    if (choice.checkboxChecked) setCloseBehavior(activeUserDataPath, selectedBehavior);
     if (selectedBehavior === "tray") hideToTray();
     else {
       isQuitting = true;
@@ -499,7 +544,7 @@ async function getTranscriber(profileId, requestedDevice = "cpu") {
   transcriberPromise = (async () => {
     const modelLoadStartedAt = performance.now();
     const { pipeline, env } = await import("@huggingface/transformers");
-    env.cacheDir = await ensureModelCache(app.getPath("userData"), profile.id);
+    env.cacheDir = await ensureModelCache(activeUserDataPath, profile.id);
     env.allowLocalModels = true;
     env.allowRemoteModels = true;
 
@@ -535,7 +580,7 @@ async function getTranscriber(profileId, requestedDevice = "cpu") {
       if (device !== "dml") throw error;
       console.warn("DirectML initialization failed; falling back to CPU:", error);
       activeDevice = "cpu";
-      lastDeviceFallback = String(error?.message || error);
+      lastDeviceFallback = true;
       nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
         ...pipelineOptions,
         device: "cpu"
@@ -582,7 +627,7 @@ function createWindow() {
     height: 720,
     minWidth: 860,
     minHeight: 620,
-    title: "NextStepAI Voice",
+    title: brand.displayName,
     icon: path.join(__dirname, "..", "assets", "app-icon.png"),
     backgroundColor: "#F4F1EB",
     titleBarStyle: "hidden",
@@ -660,8 +705,8 @@ function updateOverlay(state) {
 
 function pasteHelperPath() {
   return app.isPackaged
-    ? path.join(process.resourcesPath, "native", "win32-x64", "NextStepAI.PasteHelper.exe")
-    : path.join(__dirname, "..", "native", "win32-x64", "NextStepAI.PasteHelper.exe");
+    ? path.join(process.resourcesPath, "native", "win32-x64", brand.helperExecutable)
+    : path.join(__dirname, "..", "native", "win32-x64", brand.helperExecutable);
 }
 
 function runPasteHelper(args) {
@@ -717,7 +762,7 @@ async function runPackagedModelSelfTest() {
   });
   const reportArgument = process.argv.find((value) => value.startsWith("--self-test-report="));
   if (reportArgument) {
-    const cacheDir = getModelCacheDir(app.getPath("userData"));
+    const cacheDir = getModelCacheDir(activeUserDataPath);
     const reportPath = path.resolve(reportArgument.slice("--self-test-report=".length));
     await fs.mkdir(path.dirname(reportPath), { recursive: true });
     await fs.writeFile(reportPath, JSON.stringify({
@@ -764,6 +809,23 @@ async function runAudioWorkletSelfTest() {
 }
 
 app.whenReady().then(async () => {
+  brandMigration = await migrationPromise;
+  const migrationUsesTarget = migrationResultUsesTarget(brandMigration);
+  if (!migrationUsesTarget) {
+    brandMigration = {
+      ...brandMigration,
+      status: "fallback",
+      sourcePath: brandMigration.sourcePath || existingLegacyUserDataPath
+    };
+  }
+  activeUserDataPath = migrationUsesTarget
+    ? targetUserDataPath
+    : brandMigration.sourcePath || targetUserDataPath;
+  // If readiness won the race, Chromium may already have bound Local Storage to the
+  // initial target path. Electron cannot safely rebind that session; fallback file state,
+  // preferences, models, and diagnostics still use the intact legacy source this session.
+  app.setPath("userData", activeUserDataPath);
+
   try {
     if (await runAudioWorkletSelfTest()) {
       app.exit(0);
@@ -789,18 +851,31 @@ app.whenReady().then(async () => {
   createWindow();
   createOverlayWindow();
   createTray();
+  bootstrapComplete = true;
+  if (pendingShowMainWindow) {
+    pendingShowMainWindow = false;
+    showMainWindow();
+  }
+  if (brandMigration.status === "fallback") {
+    dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: `${brand.displayName}: no se pudieron migrar los datos`,
+      message: "La aplicación usará tus datos anteriores durante esta sesión.",
+      detail: "No se eliminó ningún dato. Cierra la aplicación y vuelve a intentarlo."
+    }).catch(() => {});
+  }
   initializeAutoStart();
   configureAutoUpdater();
   checkForUpdates();
 
   try {
-    registerGlobalShortcuts(getShortcuts(app.getPath("userData")), getShortcutMode(app.getPath("userData")));
+    registerGlobalShortcuts(getShortcuts(activeUserDataPath), getShortcutMode(activeUserDataPath));
   } catch (error) {
     console.error("Could not register global shortcuts:", error);
     try {
       registerGlobalShortcuts(DEFAULT_SHORTCUTS);
-      setShortcuts(app.getPath("userData"), DEFAULT_SHORTCUTS);
-      setShortcutMode(app.getPath("userData"), "toggle");
+      setShortcuts(activeUserDataPath, DEFAULT_SHORTCUTS);
+      setShortcutMode(activeUserDataPath, "toggle");
     } catch (fallbackError) {
       console.error("Could not register default global shortcuts:", fallbackError);
     }
@@ -808,6 +883,9 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send("shortcut:error");
     });
   }
+}).catch(() => {
+  console.error("Application bootstrap failed.");
+  app.exit(1);
 });
 
 ipcMain.handle("clipboard:write", (_event, text) => {
@@ -827,16 +905,16 @@ ipcMain.handle("history:export", async (_event, entries) => {
   }));
   const result = await dialog.showSaveDialog(mainWindow, {
     title: "Exportar historial",
-    defaultPath: `NextStepAI-Voice-History-${new Date().toISOString().slice(0, 10)}.json`,
+    defaultPath: `${brand.slug}-History-${new Date().toISOString().slice(0, 10)}.json`,
     filters: [{ name: "JSON", extensions: ["json"] }]
   });
   if (result.canceled || !result.filePath) return false;
   await fs.writeFile(result.filePath, JSON.stringify({ version: 1, entries: safeEntries }, null, 2), "utf8");
   return true;
 });
-ipcMain.handle("state:get", () => readState(app.getPath("userData")));
-ipcMain.handle("state:migrate-legacy", (_event, legacyState) => migrateLegacyState(app.getPath("userData"), legacyState));
-ipcMain.handle("state:write", (_event, state) => writeState(app.getPath("userData"), state));
+ipcMain.handle("state:get", () => readState(activeUserDataPath));
+ipcMain.handle("state:migrate-legacy", (_event, legacyState) => migrateLegacyState(activeUserDataPath, legacyState));
+ipcMain.handle("state:write", (_event, state) => writeState(activeUserDataPath, state));
 
 ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
   try {
@@ -875,7 +953,7 @@ ipcMain.handle("models:clear", async () => {
   transcriberRequestedDevice = undefined;
   transcriberPromise = undefined;
   loadingProfile = undefined;
-  await clearModelCache(app.getPath("userData"));
+  await clearModelCache(activeUserDataPath);
   return true;
 });
 
@@ -889,8 +967,14 @@ ipcMain.handle("taskbar:set-state", (_event, state) => {
   return true;
 });
 
+function safeBrandMigrationDiagnostics() {
+  const diagnostics = { status: brandMigration.status };
+  if (typeof brandMigration.sourcePath === "string") diagnostics.sourcePath = brandMigration.sourcePath;
+  return diagnostics;
+}
+
 ipcMain.handle("app:diagnostics", async () => {
-  const cacheDir = getModelCacheDir(app.getPath("userData"));
+  const cacheDir = getModelCacheDir(activeUserDataPath);
   const memory = process.memoryUsage();
   return {
     platform: `${process.platform} ${process.arch}`,
@@ -899,33 +983,34 @@ ipcMain.handle("app:diagnostics", async () => {
     inferenceDevice: transcriberDevice || loadingDevice || "none",
     requestedInferenceDevice: transcriberRequestedDevice || loadingDevice || "none",
     lastDeviceFallback,
-    shortcuts: activeShortcuts || getShortcuts(app.getPath("userData")),
+    shortcuts: activeShortcuts || getShortcuts(activeUserDataPath),
     shortcutMode: activeShortcutMode,
     memoryRssMb: Math.round(memory.rss / 1024 / 1024),
     heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
     lastModelLoadMs,
     lastTranscriptionMetrics,
     stateSchemaVersion: STATE_SCHEMA_VERSION,
-    statePath: statePath(app.getPath("userData")),
+    statePath: statePath(activeUserDataPath),
     modelCacheMb: Math.round(await directorySize(cacheDir) / 1024 / 1024),
-    modelCacheDir: cacheDir
+    modelCacheDir: cacheDir,
+    brandMigration: safeBrandMigrationDiagnostics()
   };
 });
-ipcMain.handle("app:get-close-behavior", () => getCloseBehavior(app.getPath("userData")));
-ipcMain.handle("app:set-close-behavior", (_event, behavior) => setCloseBehavior(app.getPath("userData"), behavior));
-ipcMain.handle("preferences:get-shortcuts", () => activeShortcuts || getShortcuts(app.getPath("userData")));
+ipcMain.handle("app:get-close-behavior", () => getCloseBehavior(activeUserDataPath));
+ipcMain.handle("app:set-close-behavior", (_event, behavior) => setCloseBehavior(activeUserDataPath, behavior));
+ipcMain.handle("preferences:get-shortcuts", () => activeShortcuts || getShortcuts(activeUserDataPath));
 ipcMain.handle("preferences:set-shortcuts", (_event, shortcuts) => {
   const registered = registerGlobalShortcuts(shortcuts, activeShortcutMode);
-  setShortcuts(app.getPath("userData"), registered);
+  setShortcuts(activeUserDataPath, registered);
   return registered;
 });
 ipcMain.handle("preferences:get-shortcut-mode", () => activeShortcutMode);
 ipcMain.handle("preferences:set-shortcut-mode", (_event, mode) => {
-  const shortcuts = activeShortcuts || getShortcuts(app.getPath("userData"));
+  const shortcuts = activeShortcuts || getShortcuts(activeUserDataPath);
   const previousMode = activeShortcutMode;
   registerGlobalShortcuts(shortcuts, mode);
   try {
-    return setShortcutMode(app.getPath("userData"), mode);
+    return setShortcutMode(activeUserDataPath, mode);
   } catch (error) {
     registerGlobalShortcuts(shortcuts, previousMode);
     throw error;
@@ -934,13 +1019,13 @@ ipcMain.handle("preferences:set-shortcut-mode", (_event, mode) => {
 ipcMain.handle("preferences:get-autostart", () => {
   if (process.platform !== "win32" || !app.isPackaged) return false;
   const enabled = app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
-  setAutoStartEnabled(app.getPath("userData"), enabled);
+  setAutoStartEnabled(activeUserDataPath, enabled);
   return enabled;
 });
 ipcMain.handle("preferences:set-autostart", (_event, enabled) => {
   if (typeof enabled !== "boolean") throw new Error("Auto-start preference must be a boolean.");
   const applied = configureAutoStart(enabled);
-  setAutoStartEnabled(app.getPath("userData"), applied);
+  setAutoStartEnabled(activeUserDataPath, applied);
   return applied;
 });
 
@@ -948,6 +1033,10 @@ ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:hide", () => mainWindow?.hide());
 
 app.on("activate", () => {
+  if (!bootstrapComplete) {
+    pendingShowMainWindow = true;
+    return;
+  }
   showMainWindow();
   if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
 });
