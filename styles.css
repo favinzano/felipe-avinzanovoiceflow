@@ -21,7 +21,14 @@ button { cursor: pointer; }
 
 .titlebar { -webkit-app-region: drag; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 148px 0 20px; border-bottom: 1px solid var(--rule); background: var(--bone); }
 .brand, .side-brand { display: flex; align-items: center; gap: 9px; }
-.wordmark { font-size: 11px; letter-spacing: -.025em; }.wordmark b { color: var(--blue); }
+.wordmark { font-size: 11px; letter-spacing: -.025em; }
+.brand-flow {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.08em;
+  font-weight: 400;
+  letter-spacing: -.035em;
+  color: var(--copper);
+}
 .titlebar-status { display: flex; align-items: center; gap: 7px; color: #6d7880; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
 .titlebar-status span { width: 5px; height: 5px; background: var(--blue); }
 .incision-mark { position: relative; display: inline-block; width: 22px; height: 22px; flex: none; }
@@ -33,7 +40,9 @@ button { cursor: pointer; }
 .app-shell { height: calc(100vh - 48px); display: grid; grid-template-columns: 225px 1fr; }
 .sidebar { display: flex; flex-direction: column; padding: 32px 16px 18px; color: var(--bone); background: var(--ink); }
 .side-brand { padding: 0 9px 32px; border-bottom: 1px solid var(--rule-dark); }
-.side-brand div strong, .side-brand div span { display: block; }.side-brand strong { font: 600 13px Geist; }.side-brand span { color: var(--fog); font-size: 9px; }
+.side-brand div strong, .side-brand div span { display: inline; }.side-brand strong { font: 600 13px Geist; }.side-brand span { color: var(--fog); font-size: 9px; }
+.side-wordmark { min-width: 0; line-height: 1.15; }
+.side-brand .brand-flow, .footer-wordmark .brand-flow { color: var(--copper); }
 .side-nav { display: grid; gap: 3px; margin-top: 25px; }
 .nav-item { display: grid; grid-template-columns: 26px 1fr; align-items: center; width: 100%; padding: 11px 10px; border: 0; border-left: 2px solid transparent; color: rgba(244,241,235,.56); background: transparent; text-align: left; font-size: 10px; transition: .2s; }
 .nav-item span { color: rgba(244,241,235,.25); font-size: 7px; }
@@ -94,6 +103,11 @@ h2 { font: 550 17px/1.15 Geist; letter-spacing: -.025em; }
 
 .toast { position: fixed; right: 22px; bottom: 20px; padding: 10px 13px; color: var(--bone); background: var(--ink); font-size: 8px; opacity: 0; transform: translateY(10px); pointer-events: none; transition: .25s; box-shadow: 8px 8px 0 rgba(44,95,138,.16); }.toast.show { opacity: 1; transform: translateY(0); }
 
+.demo-term { font-style: normal; }
+.demo-term > span { display: inline; padding: 0; border: 0; }
+.demo-overlay div > span { width: 6px; height: 6px; background: var(--copper); }
+.demo-overlay div strong > span { width: auto; height: auto; background: transparent; }
+
 @media (max-width: 1020px) {
   .app-shell { grid-template-columns: 195px 1fr; }
   .content { padding-left: 28px; padding-right: 28px; }
@@ -110,6 +124,8 @@ h2 { font: 550 17px/1.15 Geist; letter-spacing: -.025em; }
 .sidebar { padding: 34px 18px 20px; }
 .side-brand strong { font-size: 16px; }
 .side-brand span { font-size: 12px; }
+.side-brand .side-wordmark strong { font-size: 13px; }
+.side-brand .side-wordmark .brand-flow { font-size: 1.08em; }
 .side-nav { gap: 5px; }
 .nav-item {
   grid-template-columns: 30px 1fr;

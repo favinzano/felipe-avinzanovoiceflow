@@ -7,6 +7,12 @@ const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
 
 const voiceAPI = window.voiceAPI || {
+  brand: {
+    displayName: "felipe avinzano VoiceFlow",
+    baseName: "felipe avinzano Voice",
+    suffix: "Flow",
+    copper: "#B66D45"
+  },
   runtime: { isPackaged: false },
   copy: async (text) => navigator.clipboard?.writeText(text),
   paste: async (text) => navigator.clipboard?.writeText(text),
@@ -36,6 +42,24 @@ const voiceAPI = window.voiceAPI || {
   onNavigate: () => {},
   onPasteLast: () => {}
 };
+
+const brand = voiceAPI.brand;
+
+function applyBrand(brand) {
+  document.title = brand.displayName;
+  document.querySelectorAll("[data-brand-base]").forEach((target) => {
+    target.textContent = brand.baseName;
+  });
+  document.querySelectorAll("[data-brand-suffix]").forEach((target) => {
+    target.textContent = brand.suffix;
+  });
+}
+
+function brandWordmarkMarkup() {
+  return '<span data-brand-base></span><span class="brand-flow" data-brand-suffix></span>';
+}
+
+applyBrand(brand);
 
 initializeProductionProfile(localStorage, voiceAPI.runtime.isPackaged);
 upgradeAccuracyDefault(localStorage);
@@ -132,12 +156,12 @@ const elements = {
 };
 
 const guideSlides = [
-  { tag: "Captura flotante", title: "Habla sin salir de tu trabajo", description: "La señal flotante aparece sin mover el cursor de la aplicación activa.", visual: '<div class="demo-overlay"><div><span></span><strong>NextStepAI Voice</strong></div><i></i><i></i><i></i><i></i><i></i><i></i><p>Escuchando. Presiona el atajo para convertir.</p></div><div class="demo-shortcut"><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>Espacio</kbd></div>' },
+  { tag: "Captura flotante", title: "Habla sin salir de tu trabajo", description: "La señal flotante aparece sin mover el cursor de la aplicación activa.", visual: `<div class="demo-overlay"><div><span></span><strong aria-label="${brand.displayName}">${brandWordmarkMarkup()}</strong></div><i></i><i></i><i></i><i></i><i></i><i></i><p>Escuchando. Presiona el atajo para convertir.</p></div><div class="demo-shortcut"><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>Espacio</kbd></div>` },
   { tag: "Privacidad", title: "Tu audio se procesa localmente", description: "El motor Whisper corre dentro de tu equipo.", visual: '<div class="demo-incision"><i></i><i></i></div><p>Sin subir grabaciones a la nube.</p>' },
   { tag: "Entrega", title: "Elige cómo llega el texto", description: "Pega, copia o conserva el resultado en la aplicación.", visual: '<div class="demo-options"><span>Pegar + copiar</span><span>Solo copiar</span><span>Solo aplicación</span></div>' },
-  { tag: "Precisión", title: "Construye tu diccionario", description: "Protege nombres, marcas y términos técnicos.", visual: '<div class="demo-dictionary"><span>NextStepAI <b>Aprendido</b></span><span>Avinzano <b>Aprendido</b></span><span>Whisper <b>Aprendido</b></span></div>' },
+  { tag: "Precisión", title: "Construye tu diccionario", description: "Protege nombres, marcas y términos técnicos.", visual: `<div class="demo-dictionary"><span><i class="demo-term" aria-label="${brand.displayName}">${brandWordmarkMarkup()}</i><b>Aprendido</b></span><span>Avinzano <b>Aprendido</b></span><span>Whisper <b>Aprendido</b></span></div>` },
   { tag: "Claridad", title: "Limpia el mensaje", description: "Reduce muletillas y normaliza espacios automáticamente.", visual: '<div class="demo-clean"><s>eh, bueno,</s><strong> necesitamos avanzar con la propuesta.</strong></div>' },
-  { tag: "Texto inteligente", title: "Dicta correos y direcciones web", description: "Expresiones habladas como arroba, punto com y slash se convierten.", visual: '<div class="demo-urls"><span>equipo arroba nextstepai punto com</span><b>→</b><strong>equipo@nextstepai.com</strong></div>' },
+  { tag: "Texto inteligente", title: "Dicta correos y direcciones web", description: "Expresiones habladas como arroba, punto com y slash se convierten.", visual: '<div class="demo-urls"><span>equipo arroba felipeavinzano punto com</span><b>→</b><strong>equipo@felipeavinzano.com</strong></div>' },
   { tag: "Formato", title: "Da forma mientras hablas", description: "Usa nueva línea y punto y aparte para estructurar el resultado.", visual: '<div class="demo-result"><span>Mensaje / con estructura</span><p>Hola María, espero que estés muy bien.<br><br>Revisemos la propuesta el martes.<br><br>Saludos.</p></div>' },
   { tag: "Resultado", title: "Una idea lista para avanzar", description: "Tu texto queda disponible, copiable y organizado.", visual: '<div class="demo-result"><span>Resultado / listo</span><p>Agendemos la revisión para el martes a las diez.</p></div>' }
 ];
@@ -483,6 +507,7 @@ function renderDictionary() {
 function renderGuide() {
   const slide = guideSlides[guideIndex];
   elements.guideVisual.innerHTML = `<span class="guide-tag">${slide.tag}</span><h2>${slide.title}</h2><div class="guide-demo">${slide.visual}</div>`;
+  applyBrand(brand);
   elements.guideCount.textContent = `${guideIndex + 1} / ${guideSlides.length}`;
   elements.guideTitle.textContent = slide.title;
   elements.guideDescription.textContent = slide.description;
@@ -592,7 +617,7 @@ elements.guideNext.addEventListener("click", () => {
 elements.diagnosticsButton.addEventListener("click", async () => {
   const diagnostics = await voiceAPI.diagnostics();
   const report = [
-    "NextStepAI Voice diagnostics",
+    `${brand.displayName} diagnostics`,
     `Platform: ${diagnostics.platform}`,
     `Version: ${diagnostics.version}`,
     `Model status: ${elements.modelBadge.textContent.trim()}`,

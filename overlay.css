@@ -1,5 +1,8 @@
 @font-face { font-family: Geist; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-style: normal; font-weight: 100 900; }
 @font-face { font-family: Geist; src: url("assets/fonts/Geist-Italic-Variable.woff2") format("woff2"); font-style: italic; font-weight: 100 900; }
+@font-face { font-family: "DM Serif Display"; src: url("assets/fonts/DMSerifDisplay-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; }
+
+:root { --copper: #b66d45; }
 
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; font-family: Geist, sans-serif; }
@@ -7,7 +10,14 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .overlay::after { content: ""; position: absolute; width: 90px; height: 90px; right: -52px; top: -39px; border: 1px solid rgba(244, 241, 235, .08); transform: rotate(4deg); }
 .brand-row, .message-row { display: flex; align-items: center; }
 .brand-row { gap: 8px; height: 18px; }
-.brand-row strong { font-size: 9px; font-weight: 450; letter-spacing: -.02em; }.brand-row strong b { color: #83a9c8; font-weight: 700; }
+.brand-row strong { font-size: 9px; font-weight: 450; letter-spacing: -.02em; }
+.brand-flow {
+  font-family: "DM Serif Display", serif;
+  font-size: 1.08em;
+  font-weight: 400;
+  letter-spacing: -.035em;
+  color: var(--copper);
+}
 .status-dot { width: 5px; height: 5px; margin-left: auto; background: #b66d45; }
 .incision { position: relative; display: block; width: 17px; height: 17px; }.incision i { position: absolute; left: 1px; top: 2px; width: 11px; height: 11px; background: #f4f1eb; transform: rotate(-4deg); }.incision i + i { left: 4px; top: 3px; border: 1px solid #f4f1eb; background: transparent; transform: rotate(4deg); }
 .signal { height: 20px; display: flex; align-items: center; gap: 3px; margin: 12px 0 9px; }
