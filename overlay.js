@@ -2,7 +2,17 @@ const overlay = document.querySelector("#overlay");
 const signal = document.querySelector("#signal");
 const message = document.querySelector("#message");
 const timer = document.querySelector("#timer");
-const brand = window.overlayAPI.brand;
+const overlayFallbackAPI = Object.freeze({
+  brand: Object.freeze({
+    displayName: "felipe avinzano VoiceFlow",
+    baseName: "felipe avinzano Voice",
+    suffix: "Flow",
+    copper: "#B66D45"
+  }),
+  onState: () => {}
+});
+const overlayAPI = window.overlayAPI || overlayFallbackAPI;
+const brand = overlayAPI.brand;
 
 function applyBrand(brand) {
   document.title = brand.displayName;
@@ -11,6 +21,9 @@ function applyBrand(brand) {
   });
   document.querySelectorAll("[data-brand-suffix]").forEach((target) => {
     target.textContent = brand.suffix;
+  });
+  document.querySelectorAll("[data-brand-label]").forEach((target) => {
+    target.setAttribute("aria-label", brand.displayName);
   });
 }
 
@@ -23,7 +36,7 @@ for (let index = 0; index < 62; index += 1) {
   signal.appendChild(bar);
 }
 
-window.overlayAPI.onState((state) => {
+overlayAPI.onState((state) => {
   overlay.dataset.status = state.status;
   message.textContent = state.message || "";
   timer.textContent = state.timer || "";

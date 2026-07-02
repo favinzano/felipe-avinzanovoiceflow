@@ -53,6 +53,9 @@ function applyBrand(brand) {
   document.querySelectorAll("[data-brand-suffix]").forEach((target) => {
     target.textContent = brand.suffix;
   });
+  document.querySelectorAll("[data-brand-label]").forEach((target) => {
+    target.setAttribute("aria-label", brand.displayName);
+  });
 }
 
 function brandWordmarkMarkup() {
@@ -156,10 +159,10 @@ const elements = {
 };
 
 const guideSlides = [
-  { tag: "Captura flotante", title: "Habla sin salir de tu trabajo", description: "La señal flotante aparece sin mover el cursor de la aplicación activa.", visual: `<div class="demo-overlay"><div><span></span><strong aria-label="${brand.displayName}">${brandWordmarkMarkup()}</strong></div><i></i><i></i><i></i><i></i><i></i><i></i><p>Escuchando. Presiona el atajo para convertir.</p></div><div class="demo-shortcut"><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>Espacio</kbd></div>` },
+  { tag: "Captura flotante", title: "Habla sin salir de tu trabajo", description: "La señal flotante aparece sin mover el cursor de la aplicación activa.", visual: `<div class="demo-overlay"><div><span></span><strong data-brand-label aria-label="${brand.displayName}">${brandWordmarkMarkup()}</strong></div><i></i><i></i><i></i><i></i><i></i><i></i><p>Escuchando. Presiona el atajo para convertir.</p></div><div class="demo-shortcut"><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>Espacio</kbd></div>` },
   { tag: "Privacidad", title: "Tu audio se procesa localmente", description: "El motor Whisper corre dentro de tu equipo.", visual: '<div class="demo-incision"><i></i><i></i></div><p>Sin subir grabaciones a la nube.</p>' },
   { tag: "Entrega", title: "Elige cómo llega el texto", description: "Pega, copia o conserva el resultado en la aplicación.", visual: '<div class="demo-options"><span>Pegar + copiar</span><span>Solo copiar</span><span>Solo aplicación</span></div>' },
-  { tag: "Precisión", title: "Construye tu diccionario", description: "Protege nombres, marcas y términos técnicos.", visual: `<div class="demo-dictionary"><span><i class="demo-term" aria-label="${brand.displayName}">${brandWordmarkMarkup()}</i><b>Aprendido</b></span><span>Avinzano <b>Aprendido</b></span><span>Whisper <b>Aprendido</b></span></div>` },
+  { tag: "Precisión", title: "Construye tu diccionario", description: "Protege nombres, marcas y términos técnicos.", visual: `<div class="demo-dictionary"><span><i class="demo-term" data-brand-label aria-label="${brand.displayName}">${brandWordmarkMarkup()}</i><b>Aprendido</b></span><span>Avinzano <b>Aprendido</b></span><span>Whisper <b>Aprendido</b></span></div>` },
   { tag: "Claridad", title: "Limpia el mensaje", description: "Reduce muletillas y normaliza espacios automáticamente.", visual: '<div class="demo-clean"><s>eh, bueno,</s><strong> necesitamos avanzar con la propuesta.</strong></div>' },
   { tag: "Texto inteligente", title: "Dicta correos y direcciones web", description: "Expresiones habladas como arroba, punto com y slash se convierten.", visual: '<div class="demo-urls"><span>equipo arroba felipeavinzano punto com</span><b>→</b><strong>equipo@felipeavinzano.com</strong></div>' },
   { tag: "Formato", title: "Da forma mientras hablas", description: "Usa nueva línea y punto y aparte para estructurar el resultado.", visual: '<div class="demo-result"><span>Mensaje / con estructura</span><p>Hola María, espero que estés muy bien.<br><br>Revisemos la propuesta el martes.<br><br>Saludos.</p></div>' },

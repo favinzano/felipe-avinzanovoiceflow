@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const brand = require("./brand-config.cjs");
 const main = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
@@ -47,12 +48,9 @@ assert.match(main, /brandMigration:\s*safeBrandMigrationDiagnostics\(\)/, "diagn
 assertRendererBrand(preload, "main preload");
 assertRendererBrand(overlayPreload, "overlay preload");
 
-function assertVisualWordmark(html, surface, minimumCount = 1) {
-  const bases = html.match(/data-brand-base(?:\s|>)/g) || [];
-  const suffixes = html.match(/data-brand-suffix(?:\s|>)/g) || [];
-  assert.ok(bases.length >= minimumCount, `${surface} has semantic brand base targets`);
-  assert.equal(suffixes.length, bases.length, `${surface} has one suffix target per base target`);
-  assert.match(html, /data-brand-base[^>]*>felipe avinzano Voice<\/span>\s*<span[^>]*class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow<\/span>/, `${surface} keeps only Flow in a distinct adjacent target`);
+function assertVisualWordmark(html, className, surface) {
+  const wordmark = new RegExp(`class=["']${className}["'][^>]*data-brand-label[^>]*>[\\s\\S]{0,320}?data-brand-base[^>]*>felipe avinzano Voice<[\\s\\S]{0,160}?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow<`);
+  assert.match(html, wordmark, `${surface} has its own labeled base and Flow suffix targets`);
 }
 
 function assertBrandCss(css, surface) {
@@ -61,8 +59,11 @@ function assertBrandCss(css, surface) {
   assert.match(css, /\.brand-flow\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif[^}]*font-weight:\s*400[^}]*color:\s*var\(--copper\)[^}]*\}/, `${surface} styles only the Flow suffix in copper DM Serif`);
 }
 
-assertVisualWordmark(indexHtml, "main HTML", 4);
-assertVisualWordmark(overlayHtml, "overlay HTML");
+assertVisualWordmark(indexHtml, "wordmark", "titlebar wordmark");
+assertVisualWordmark(indexHtml, "side-wordmark", "sidebar wordmark");
+assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
+assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
+assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
 assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay HTML has a complete fallback title");
 assert.doesNotMatch(indexHtml, /NextStepAI Voice/, "active main-window copy no longer uses the legacy product name");
@@ -75,12 +76,51 @@ for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, 
   assert.match(source, /document\.title\s*=\s*brand\.displayName/, `${surface} applies the complete title`);
   assert.match(source, /querySelectorAll\(["']\[data-brand-base\]["']\)[\s\S]*brand\.baseName/, `${surface} applies the base name`);
   assert.match(source, /querySelectorAll\(["']\[data-brand-suffix\]["']\)[\s\S]*brand\.suffix/, `${surface} applies the suffix independently`);
-  assert.match(source, /applyBrand\(brand\)/, `${surface} applies preload brand before interaction`);
+  assert.match(source, /querySelectorAll\(["']\[data-brand-label\]["']\)[\s\S]*setAttribute\(["']aria-label["'],\s*brand\.displayName\)/, `${surface} updates accessible labels`);
+  assert.match(source, /^applyBrand\(brand\);$/m, `${surface} invokes applyBrand before interaction`);
 }
 assert.match(renderer, /brand:\s*\{[\s\S]*displayName:\s*["']felipe avinzano VoiceFlow["'][\s\S]*baseName:\s*["']felipe avinzano Voice["'][\s\S]*suffix:\s*["']Flow["'][\s\S]*copper:\s*["']#B66D45["']/, "browser preview exposes the approved brand fallback");
 assert.match(renderer, /brandWordmarkMarkup\(\)/, "dynamic guide wordmarks use the split brand helper");
+assert.match(renderer, /data-brand-label[^>]*aria-label=["']\$\{brand\.displayName\}["'][^>]*>\$\{brandWordmarkMarkup\(\)\}/, "dynamic guide wordmarks expose an updatable accessible label");
+assert.equal((renderer.match(/data-brand-label[^>]*aria-label=["']\$\{brand\.displayName\}["'][^>]*>\$\{brandWordmarkMarkup\(\)\}/g) || []).length, 2, "each dynamic guide wordmark has labeled split targets");
 assert.match(renderer, /`\$\{brand\.displayName\} diagnostics`/, "diagnostics use the complete runtime display name");
 assert.doesNotMatch(renderer, /NextStepAI|nextstepai\.com/, "dynamic guide and diagnostics copy no longer exposes the legacy brand");
+assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{[\s\S]*brand:\s*Object\.freeze\(\{/, "overlay direct preview fallback and its brand are frozen");
+
+{
+  const elements = new Map();
+  const makeElement = () => ({
+    dataset: {},
+    textContent: "",
+    attributes: {},
+    children: [],
+    style: { setProperty() {} },
+    appendChild(child) { this.children.push(child); },
+    setAttribute(name, value) { this.attributes[name] = value; }
+  });
+  for (const id of ["overlay", "signal", "message", "timer"]) elements.set(`#${id}`, makeElement());
+  const baseTarget = makeElement();
+  const suffixTarget = makeElement();
+  const labelTarget = makeElement();
+  const document = {
+    title: "",
+    querySelector(selector) { return elements.get(selector); },
+    querySelectorAll(selector) {
+      return {
+        "[data-brand-base]": [baseTarget],
+        "[data-brand-suffix]": [suffixTarget],
+        "[data-brand-label]": [labelTarget]
+      }[selector] || [];
+    },
+    createElement: makeElement
+  };
+  assert.doesNotThrow(() => vm.runInNewContext(overlayRenderer, { document, window: {}, Math }), "overlay direct preview executes without preload");
+  assert.equal(document.title, brand.displayName, "overlay direct preview applies the title");
+  assert.equal(baseTarget.textContent, brand.baseName, "overlay direct preview applies the base name");
+  assert.equal(suffixTarget.textContent, brand.suffix, "overlay direct preview applies only the suffix");
+  assert.equal(labelTarget.attributes["aria-label"], brand.displayName, "overlay direct preview applies the accessible label");
+  assert.equal(elements.get("#signal").children.length, 62, "overlay direct preview creates every signal bar");
+}
 
 assert.equal(brand.displayName, "felipe avinzano VoiceFlow");
 console.log("brand surface tests passed");
