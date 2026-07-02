@@ -1,7 +1,7 @@
 ﻿{
-    "name":  "nextstepai-voice",
+    "name":  "felipe-avinzanovoiceflow",
     "version":  "1.1.1",
-    "description":  "NextStepAI Voice - dictado privado y local para Windows",
+    "description":  "felipe avinzano VoiceFlow - dictado privado y local para Windows",
     "author":  "Felipe Avinzano",
     "license":  "SEE LICENSE IN LICENSE.md",
     "main":  "src/main.cjs",
@@ -11,8 +11,8 @@
                     "build:icons":  "node scripts/build-icons.cjs",
                     "start":  "electron .",
                     "dev":  "npm run build \u0026\u0026 electron .",
-                    "test":  "npm run build \u0026\u0026 node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs",
-                    "test:production":  "node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs \u0026\u0026 node src/transcription-smoke.test.cjs",
+                    "test":  "npm run build \u0026\u0026 node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/brand-config.test.cjs \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs",
+                    "test:production":  "node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/brand-config.test.cjs \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs \u0026\u0026 node src/transcription-smoke.test.cjs",
                     "test:models":  "node src/whisper-models.smoke.cjs",
                     "benchmark:models":  "node scripts/benchmark-models.cjs",
                     "pre-release":  "node scripts/compress-natives.cjs",
@@ -37,13 +37,13 @@
                             "esbuild":  "^0.27.0"
                         },
     "build":  {
-                  "appId":  "com.nextstepai.voice",
-                  "productName":  "NextStepAI Voice",
+                  "appId":  "com.felipeavinzano.voiceflow",
+                  "productName":  "felipe avinzano VoiceFlow",
                   "publish":  [
                                   {
                                       "provider":  "github",
                                       "owner":  "favinzano",
-                                      "repo":  "nextstepai-voice",
+                                      "repo":  "felipe-avinzanovoiceflow",
                                       "releaseType":  "release"
                                   }
                               ],
@@ -100,14 +100,14 @@
                                                           ]
                                              }
                                          ],
-                              "artifactName":  "NextStepAI-Voice-Setup-${version}-${arch}.${ext}"
+                              "artifactName":  "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}"
                           },
                   "nsis":  {
                                "oneClick":  false,
                                "allowToChangeInstallationDirectory":  true,
                                "createDesktopShortcut":  true,
                                "createStartMenuShortcut":  true,
-                               "shortcutName":  "NextStepAI Voice",
+                               "shortcutName":  "felipe avinzano VoiceFlow",
                                "deleteAppDataOnUninstall":  false,
                                "license":  "LICENSE.md"
                            }
