@@ -1,11 +1,11 @@
 const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, session, screen, shell, Tray } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs/promises");
-const fsSync = require("fs");
 const path = require("path");
 const { execFile, spawn } = require("child_process");
 const brand = require("./brand-config.cjs");
 const { migrateBrandData } = require("./brand-migration.cjs");
+const { selectInitialUserDataPath } = require("./brand-session-path.cjs");
 const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
@@ -66,19 +66,18 @@ const targetUserDataPath = path.join(appDataPath, targetUserDataName);
 const legacyUserDataNames = brand.legacyDataNames.filter((name) => {
   return app.isPackaged ? !name.endsWith(" Development") : name.endsWith(" Development");
 });
-const existingLegacyUserDataPath = legacyUserDataNames
-  .map((name) => path.join(appDataPath, name))
-  .find((candidate) => {
-    try {
-      const info = fsSync.lstatSync(candidate);
-      return info.isDirectory() && !info.isSymbolicLink();
-    } catch {
-      return false;
-    }
-  });
-let activeUserDataPath = targetUserDataPath;
+const legacyUserDataPaths = legacyUserDataNames.map((name) => path.join(appDataPath, name));
+const initialUserDataPath = selectInitialUserDataPath({
+  targetPath: targetUserDataPath,
+  legacyPaths: legacyUserDataPaths
+});
+const existingLegacyUserDataPath = initialUserDataPath === targetUserDataPath ? undefined : initialUserDataPath;
+let activeUserDataPath = initialUserDataPath;
 
-app.setPath("userData", targetUserDataPath);
+// Before a migration marker exists, keep Chromium on the safe legacy directory so
+// Local Storage and IndexedDB remain readable for this first migration/fallback session.
+// File-backed writes use the migration result below; the marker selects target next launch.
+app.setPath("userData", initialUserDataPath);
 if (process.platform === "win32") app.setAppUserModelId(brand.appId);
 const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -94,13 +93,7 @@ const migrationPromise = hasSingleInstanceLock
       status: "fallback",
       sourcePath: existingLegacyUserDataPath,
       targetPath: targetUserDataPath
-    })).then((result) => {
-      activeUserDataPath = migrationResultUsesTarget(result)
-        ? targetUserDataPath
-        : result.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
-      app.setPath("userData", activeUserDataPath);
-      return result;
-    })
+    }))
   : Promise.resolve({ status: "not-needed", targetPath: targetUserDataPath });
 
 app.on("second-instance", () => {
@@ -820,11 +813,7 @@ app.whenReady().then(async () => {
   }
   activeUserDataPath = migrationUsesTarget
     ? targetUserDataPath
-    : brandMigration.sourcePath || targetUserDataPath;
-  // If readiness won the race, Chromium may already have bound Local Storage to the
-  // initial target path. Electron cannot safely rebind that session; fallback file state,
-  // preferences, models, and diagnostics still use the intact legacy source this session.
-  app.setPath("userData", activeUserDataPath);
+    : brandMigration.sourcePath || existingLegacyUserDataPath || initialUserDataPath;
 
   try {
     if (await runAudioWorkletSelfTest()) {

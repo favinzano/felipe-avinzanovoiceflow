@@ -15,6 +15,7 @@ function assertRendererBrand(source, surface) {
 
 assert.match(main, /require\(["']\.\/brand-config\.cjs["']\)/, "main imports the canonical brand");
 assert.match(main, /require\(["']\.\/brand-migration\.cjs["']\)/, "main imports brand migration");
+assert.match(main, /require\(["']\.\/brand-session-path\.cjs["']\)/, "main imports deterministic session selection");
 assert.match(main, /app\.setName\(brand\.displayName\)/, "native app name uses brand.displayName");
 assert.match(main, /app\.setAppUserModelId\(brand\.appId\)/, "Windows identity uses brand.appId");
 assert.match(main, /shell\.openExternal\(brand\.issueUrl\)/, "support opens the canonical issue URL");
@@ -25,6 +26,8 @@ assert.match(main, /app\.whenReady\(\)[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*app\.
 assert.match(main, /app\.on\(["']second-instance["'],[\s\S]*if \(!bootstrapComplete\)[\s\S]*pendingShowMainWindow\s*=\s*true/, "a second instance cannot create a window before migration bootstrap");
 assert.match(main, /activeUserDataPath/, "one explicit active data path is retained");
 assert.doesNotMatch(main, /app\.getPath\(["']userData["']\)/, "state consumers do not bypass activeUserDataPath");
+assert.match(main, /app\.setPath\(["']userData["'],\s*initialUserDataPath\)/, "Chromium receives the pre-ready session path");
+assert.equal((main.match(/app\.setPath\(["']userData["']/g) || []).length, 1, "fallback never attempts a late Chromium rebind");
 assert.match(main, /tray\.setToolTip\(brand\.displayName\)/, "tray tooltip uses the display name");
 assert.match(main, /title:\s*brand\.displayName/, "native window title uses the display name");
 assert.match(main, /`\$\{brand\.slug\}-History-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.json`/, "history export uses the branded slug");
