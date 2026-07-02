@@ -1,4 +1,6 @@
+const { constants } = require("node:fs");
 const fs = require("node:fs/promises");
+const crypto = require("node:crypto");
 const path = require("node:path");
 
 const MARKER_NAME = ".voiceflow-brand-migration-v1.json";
@@ -8,13 +10,59 @@ function migrationMarkerPath(targetPath) {
   return path.join(targetPath, MARKER_NAME);
 }
 
-async function pathExists(filePath, operations) {
+function sameMigrationPath(left, right, platform = process.platform) {
+  const resolvedLeft = path.resolve(left);
+  const resolvedRight = path.resolve(right);
+  return platform === "win32"
+    ? resolvedLeft.toLowerCase() === resolvedRight.toLowerCase()
+    : resolvedLeft === resolvedRight;
+}
+
+async function lstatIfExists(filePath, operations) {
   try {
-    await operations.access(filePath);
-    return true;
+    return await operations.lstat(filePath);
   } catch (error) {
-    if (error && error.code === "ENOENT") return false;
+    if (error && error.code === "ENOENT") return null;
     throw error;
+  }
+}
+
+function assertSafeEntry(info, filePath, expectedType) {
+  if (info.isSymbolicLink()) throw new Error(`Migration refuses linked path: ${filePath}`);
+  if (expectedType === "directory" && !info.isDirectory()) {
+    throw new Error(`Migration expected a directory: ${filePath}`);
+  }
+  if (expectedType === "file" && !info.isFile()) {
+    throw new Error(`Migration expected a regular file: ${filePath}`);
+  }
+}
+
+async function regularFileExists(filePath, operations) {
+  const info = await lstatIfExists(filePath, operations);
+  if (!info) return false;
+  assertSafeEntry(info, filePath, "file");
+  return true;
+}
+
+async function ensureSafeDirectory(targetPath, directoryPath, operations) {
+  const relative = path.relative(targetPath, directoryPath);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Migration destination escapes target: ${directoryPath}`);
+  }
+  const parts = relative ? relative.split(path.sep) : [];
+  let current = targetPath;
+  for (const part of [null, ...parts]) {
+    if (part) current = path.join(current, part);
+    let info = await lstatIfExists(current, operations);
+    if (!info) {
+      try {
+        await operations.mkdir(current);
+      } catch (error) {
+        if (!error || error.code !== "EEXIST") throw error;
+      }
+      info = await operations.lstat(current);
+    }
+    assertSafeEntry(info, current, "directory");
   }
 }
 
@@ -27,11 +75,30 @@ async function assertValidJson(filePath, operations, description) {
   }
 }
 
+async function readValidMarker(markerPath, operations) {
+  const contents = await operations.readFile(markerPath, "utf8");
+  let marker;
+  try {
+    marker = JSON.parse(contents);
+  } catch (error) {
+    throw new Error(`Brand migration marker is not valid JSON: ${markerPath}`, { cause: error });
+  }
+  if (!marker || typeof marker.sourcePath !== "string" || Number.isNaN(Date.parse(marker.completedAt))) {
+    throw new Error(`Brand migration marker is invalid: ${markerPath}`);
+  }
+  return marker;
+}
+
+function toError(value) {
+  if (value instanceof Error) return value;
+  return new Error(typeof value === "string" ? value : `Migration failed: ${String(value)}`);
+}
+
 async function selectStateSource(sourcePath, operations) {
   const primary = path.join(sourcePath, "voice-state.json");
   const backup = path.join(sourcePath, "voice-state.json.backup");
-  const primaryExists = await pathExists(primary, operations);
-  const backupExists = await pathExists(backup, operations);
+  const primaryExists = await regularFileExists(primary, operations);
+  const backupExists = await regularFileExists(backup, operations);
   if (!primaryExists && !backupExists) return null;
 
   if (primaryExists) {
@@ -49,16 +116,17 @@ async function selectStateSource(sourcePath, operations) {
 
 function createOperations(overrides = {}) {
   return {
-    access: fs.access,
     copyFile: fs.copyFile,
     link: fs.link,
+    lstat: fs.lstat,
     mkdir: fs.mkdir,
     readFile: fs.readFile,
     readdir: fs.readdir,
-    rename: fs.rename,
     rm: fs.rm,
-    stat: fs.stat,
     writeFile: fs.writeFile,
+    now: () => new Date(),
+    randomUUID: crypto.randomUUID,
+    platform: process.platform,
     ...overrides
   };
 }
@@ -70,25 +138,24 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
   const tempPaths = new Set();
   let sourcePath;
   let tempSequence = 0;
+  let invocationToken;
 
   const cleanupTemp = async (tempPath) => {
     tempPaths.delete(tempPath);
     try {
-      await operations.rm(tempPath, { force: true, recursive: true });
+      await operations.rm(tempPath, { force: true });
     } catch {
       // Best effort: a later migration uses a distinct temporary name.
     }
   };
 
   const atomicCopy = async (from, to) => {
-    if (await pathExists(to, operations)) return;
-    await operations.mkdir(path.dirname(to), { recursive: true });
-    const tempPath = `${to}.voiceflow-migration-${process.pid}-${++tempSequence}.tmp`;
-    tempPaths.add(tempPath);
-    await cleanupTemp(tempPath);
+    if (await regularFileExists(to, operations)) return;
+    await ensureSafeDirectory(targetPath, path.dirname(to), operations);
+    const tempPath = `${to}.voiceflow-migration-${invocationToken}-${++tempSequence}.tmp`;
     tempPaths.add(tempPath);
     try {
-      await operations.copyFile(from, tempPath);
+      await operations.copyFile(from, tempPath, constants.COPYFILE_EXCL);
       try {
         await operations.link(tempPath, to);
       } catch (error) {
@@ -102,12 +169,14 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
   };
 
   const copyTree = async (from, to) => {
-    const info = await operations.stat(from);
-    if (!info.isDirectory()) {
+    const info = await operations.lstat(from);
+    if (info.isSymbolicLink()) throw new Error(`Migration refuses linked path: ${from}`);
+    if (info.isFile()) {
       await atomicCopy(from, to);
       return;
     }
-    await operations.mkdir(to, { recursive: true });
+    if (!info.isDirectory()) throw new Error(`Migration refuses non-file entry: ${from}`);
+    await ensureSafeDirectory(targetPath, to, operations);
     const entries = await operations.readdir(from, { withFileTypes: true });
     entries.sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
@@ -116,15 +185,20 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
   };
 
   try {
-    if (await pathExists(markerPath, operations)) {
+    invocationToken = operations.randomUUID();
+    const targetInfo = await lstatIfExists(targetPath, operations);
+    if (targetInfo) assertSafeEntry(targetInfo, targetPath, "directory");
+    if (await regularFileExists(markerPath, operations)) {
+      await readValidMarker(markerPath, operations);
       return { status: "already-migrated", targetPath };
     }
 
-    const normalizedTarget = path.resolve(targetPath).toLowerCase();
     for (const legacyName of legacyNames) {
       const candidate = path.join(appDataPath, legacyName);
-      if (path.resolve(candidate).toLowerCase() === normalizedTarget) continue;
-      if (await pathExists(candidate, operations)) {
+      if (sameMigrationPath(candidate, targetPath, operations.platform)) continue;
+      const candidateInfo = await lstatIfExists(candidate, operations);
+      if (candidateInfo) {
+        assertSafeEntry(candidateInfo, candidate, "directory");
         sourcePath = candidate;
         break;
       }
@@ -132,7 +206,7 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
     if (!sourcePath) return { status: "not-needed", targetPath };
 
     const stateDestination = path.join(targetPath, "voice-state.json");
-    if (!(await pathExists(stateDestination, operations))) {
+    if (!(await regularFileExists(stateDestination, operations))) {
       const stateSource = await selectStateSource(sourcePath, operations);
       if (stateSource) await atomicCopy(stateSource, stateDestination);
     }
@@ -140,8 +214,8 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
     const preferencesSource = path.join(sourcePath, "app-preferences.json");
     const preferencesDestination = path.join(targetPath, "app-preferences.json");
     if (
-      !(await pathExists(preferencesDestination, operations)) &&
-      (await pathExists(preferencesSource, operations))
+      !(await regularFileExists(preferencesDestination, operations)) &&
+      (await regularFileExists(preferencesSource, operations))
     ) {
       await assertValidJson(preferencesSource, operations, "App preferences");
       await atomicCopy(preferencesSource, preferencesDestination);
@@ -149,30 +223,39 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
 
     for (const entry of MIGRATION_ENTRIES.slice(2)) {
       const from = path.join(sourcePath, entry);
-      if (await pathExists(from, operations)) await copyTree(from, path.join(targetPath, entry));
+      if (await lstatIfExists(from, operations)) await copyTree(from, path.join(targetPath, entry));
     }
 
-    await operations.mkdir(targetPath, { recursive: true });
-    const markerTemp = `${markerPath}.voiceflow-migration-${process.pid}-${++tempSequence}.tmp`;
-    tempPaths.add(markerTemp);
-    await cleanupTemp(markerTemp);
+    await ensureSafeDirectory(targetPath, targetPath, operations);
+    const markerTemp = `${markerPath}.voiceflow-migration-${invocationToken}-${++tempSequence}.tmp`;
     tempPaths.add(markerTemp);
     await operations.writeFile(
       markerTemp,
-      JSON.stringify({ sourcePath, completedAt: new Date().toISOString() }, null, 2),
-      "utf8"
+      JSON.stringify({ sourcePath, completedAt: new Date(operations.now()).toISOString() }, null, 2),
+      { encoding: "utf8", flag: "wx" }
     );
-    await operations.rename(markerTemp, markerPath);
-    tempPaths.delete(markerTemp);
+    try {
+      await operations.link(markerTemp, markerPath);
+    } catch (error) {
+      if (!error || error.code !== "EEXIST") throw error;
+      if (!(await regularFileExists(markerPath, operations))) {
+        throw new Error(`Brand migration marker disappeared during publication: ${markerPath}`);
+      }
+      await readValidMarker(markerPath, operations);
+      await cleanupTemp(markerTemp);
+      return { status: "already-migrated", targetPath };
+    }
+    await cleanupTemp(markerTemp);
     return { status: "migrated", sourcePath, targetPath };
   } catch (error) {
     await Promise.all([...tempPaths].map(cleanupTemp));
-    return { status: "fallback", sourcePath, targetPath, error };
+    return { status: "fallback", sourcePath, targetPath, error: toError(error) };
   }
 }
 
 module.exports = {
   migrateBrandData,
   migrationMarkerPath,
+  sameMigrationPath,
   selectStateSource
 };
