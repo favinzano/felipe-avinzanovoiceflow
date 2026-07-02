@@ -5,6 +5,8 @@ dist/
 release/
 out/
 native/
+.worktrees/
+.superpowers/
 benchmarks/results/
 .env*
 !.env.example
