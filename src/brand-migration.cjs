@@ -51,6 +51,7 @@ function createOperations(overrides = {}) {
   return {
     access: fs.access,
     copyFile: fs.copyFile,
+    link: fs.link,
     mkdir: fs.mkdir,
     readFile: fs.readFile,
     readdir: fs.readdir,
@@ -88,12 +89,12 @@ async function migrateBrandData({ appDataPath, targetName, legacyNames, operatio
     tempPaths.add(tempPath);
     try {
       await operations.copyFile(from, tempPath);
-      if (await pathExists(to, operations)) {
-        await cleanupTemp(tempPath);
-        return;
+      try {
+        await operations.link(tempPath, to);
+      } catch (error) {
+        if (!error || error.code !== "EEXIST") throw error;
       }
-      await operations.rename(tempPath, to);
-      tempPaths.delete(tempPath);
+      await cleanupTemp(tempPath);
     } catch (error) {
       await cleanupTemp(tempPath);
       throw error;

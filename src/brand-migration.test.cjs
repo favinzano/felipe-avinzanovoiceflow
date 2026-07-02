@@ -69,6 +69,42 @@ async function run() {
   await sandbox(async (appDataPath) => {
     const source = path.join(appDataPath, "Legacy");
     const target = path.join(appDataPath, "VoiceFlow");
+    const destinationState = path.join(target, "voice-state.json");
+    await json(path.join(source, "voice-state.json"), { history: ["legacy"] });
+    await json(destinationState, { history: ["destination"] });
+    const originalBytes = await fs.readFile(destinationState);
+
+    const result = await migrateBrandData({ appDataPath, targetName: "VoiceFlow", legacyNames: ["Legacy"] });
+
+    assert.equal(result.status, "migrated");
+    assert.deepEqual(await fs.readFile(destinationState), originalBytes);
+    assert.deepEqual(JSON.parse(await fs.readFile(destinationState)), { history: ["destination"] });
+  });
+
+  await sandbox(async (appDataPath) => {
+    const source = path.join(appDataPath, "Legacy");
+    const target = path.join(appDataPath, "VoiceFlow");
+    const destinationState = path.join(target, "voice-state.json");
+    await json(path.join(source, "voice-state.json"), { history: ["legacy"] });
+    const result = await migrateBrandData({
+      appDataPath,
+      targetName: "VoiceFlow",
+      legacyNames: ["Legacy"],
+      operations: {
+        link: async (tempPath, destinationPath) => {
+          await json(destinationPath, { history: ["race winner"] });
+          return fs.link(tempPath, destinationPath);
+        }
+      }
+    });
+
+    assert.equal(result.status, "migrated");
+    assert.deepEqual(JSON.parse(await fs.readFile(destinationState)), { history: ["race winner"] });
+  });
+
+  await sandbox(async (appDataPath) => {
+    const source = path.join(appDataPath, "Legacy");
+    const target = path.join(appDataPath, "VoiceFlow");
     await fs.mkdir(source);
     await fs.writeFile(path.join(source, "voice-state.json"), "bad");
     await json(path.join(source, "voice-state.json.backup"), { history: ["recovered"] });
