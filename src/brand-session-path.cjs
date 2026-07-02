@@ -1,25 +1,41 @@
 const fs = require("node:fs");
 const { migrationMarkerPath } = require("./brand-migration.cjs");
 
-function safeLstat(filePath, lstatSync) {
+function lstatIfExists(filePath, lstatSync) {
   try {
     return lstatSync(filePath);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
   }
 }
 
-function selectInitialUserDataPath({ targetPath, legacyPaths, lstatSync = fs.lstatSync }) {
-  const target = safeLstat(targetPath, lstatSync);
-  const safeTarget = !target || (target.isDirectory() && !target.isSymbolicLink());
-  const marker = safeTarget ? safeLstat(migrationMarkerPath(targetPath), lstatSync) : null;
-  if (marker?.isFile() && !marker.isSymbolicLink()) return targetPath;
+function assertSafeDirectory(info, targetPath) {
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error(`Brand target must be a safe directory: ${targetPath}`);
+  }
+}
+
+function prepareBrandElectronPaths({ targetPath, legacyPaths, operations = fs }) {
+  let target = lstatIfExists(targetPath, operations.lstatSync);
+  if (!target) {
+    operations.mkdirSync(targetPath, { recursive: true });
+    target = operations.lstatSync(targetPath);
+  }
+  assertSafeDirectory(target, targetPath);
+
+  const marker = lstatIfExists(migrationMarkerPath(targetPath), operations.lstatSync);
+  if (marker?.isFile() && !marker.isSymbolicLink()) {
+    return { userDataPath: targetPath, sessionDataPath: targetPath, existingLegacyDataPath: undefined };
+  }
 
   for (const legacyPath of legacyPaths) {
-    const info = safeLstat(legacyPath, lstatSync);
-    if (info?.isDirectory() && !info.isSymbolicLink()) return legacyPath;
+    const info = lstatIfExists(legacyPath, operations.lstatSync);
+    if (info?.isDirectory() && !info.isSymbolicLink()) {
+      return { userDataPath: targetPath, sessionDataPath: legacyPath, existingLegacyDataPath: legacyPath };
+    }
   }
-  return targetPath;
+  return { userDataPath: targetPath, sessionDataPath: targetPath, existingLegacyDataPath: undefined };
 }
 
-module.exports = { selectInitialUserDataPath };
+module.exports = { prepareBrandElectronPaths };

@@ -1,11 +1,12 @@
 const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, session, screen, shell, Tray } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const fs = require("fs/promises");
+const fsSync = require("node:fs");
 const path = require("path");
 const { execFile, spawn } = require("child_process");
 const brand = require("./brand-config.cjs");
 const { migrateBrandData } = require("./brand-migration.cjs");
-const { selectInitialUserDataPath } = require("./brand-session-path.cjs");
+const { prepareBrandElectronPaths } = require("./brand-session-path.cjs");
 const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
@@ -67,17 +68,19 @@ const legacyUserDataNames = brand.legacyDataNames.filter((name) => {
   return app.isPackaged ? !name.endsWith(" Development") : name.endsWith(" Development");
 });
 const legacyUserDataPaths = legacyUserDataNames.map((name) => path.join(appDataPath, name));
-const initialUserDataPath = selectInitialUserDataPath({
+const preparedBrandPaths = prepareBrandElectronPaths({
   targetPath: targetUserDataPath,
   legacyPaths: legacyUserDataPaths
 });
-const existingLegacyUserDataPath = initialUserDataPath === targetUserDataPath ? undefined : initialUserDataPath;
-let activeUserDataPath = initialUserDataPath;
+const initialSessionDataPath = preparedBrandPaths.sessionDataPath;
+const existingLegacyUserDataPath = preparedBrandPaths.existingLegacyDataPath;
+let activeUserDataPath = existingLegacyUserDataPath || targetUserDataPath;
 
-// Before a migration marker exists, keep Chromium on the safe legacy directory so
-// Local Storage and IndexedDB remain readable for this first migration/fallback session.
-// File-backed writes use the migration result below; the marker selects target next launch.
-app.setPath("userData", initialUserDataPath);
+// userData remains stable for single-instance identity. During the first migration,
+// sessionData intentionally reads legacy Local Storage/IndexedDB; the marker moves the
+// next launch to target without rebinding either Electron path after readiness.
+app.setPath("userData", targetUserDataPath);
+app.setPath("sessionData", initialSessionDataPath);
 if (process.platform === "win32") app.setAppUserModelId(brand.appId);
 const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -813,7 +816,7 @@ app.whenReady().then(async () => {
   }
   activeUserDataPath = migrationUsesTarget
     ? targetUserDataPath
-    : brandMigration.sourcePath || existingLegacyUserDataPath || initialUserDataPath;
+    : brandMigration.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
 
   try {
     if (await runAudioWorkletSelfTest()) {

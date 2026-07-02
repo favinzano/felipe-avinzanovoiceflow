@@ -26,8 +26,12 @@ assert.match(main, /app\.whenReady\(\)[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*app\.
 assert.match(main, /app\.on\(["']second-instance["'],[\s\S]*if \(!bootstrapComplete\)[\s\S]*pendingShowMainWindow\s*=\s*true/, "a second instance cannot create a window before migration bootstrap");
 assert.match(main, /activeUserDataPath/, "one explicit active data path is retained");
 assert.doesNotMatch(main, /app\.getPath\(["']userData["']\)/, "state consumers do not bypass activeUserDataPath");
-assert.match(main, /app\.setPath\(["']userData["'],\s*initialUserDataPath\)/, "Chromium receives the pre-ready session path");
-assert.equal((main.match(/app\.setPath\(["']userData["']/g) || []).length, 1, "fallback never attempts a late Chromium rebind");
+assert.match(main, /const fsSync\s*=\s*require\(["']node:fs["']\)/, "hold-mode helper has a synchronous filesystem binding");
+assert.match(main, /fsSync\.existsSync\(helper\)/, "hold-mode helper existence check uses the bound filesystem");
+assert.match(main, /app\.setPath\(["']userData["'],\s*targetUserDataPath\)/, "single-instance identity always uses target userData");
+assert.match(main, /app\.setPath\(["']sessionData["'],\s*initialSessionDataPath\)/, "Chromium receives the selected pre-ready sessionData path");
+assert.equal((main.match(/app\.setPath\(["'](?:userData|sessionData)["']/g) || []).length, 2, "Electron data paths are never rebound after startup");
+assert.ok(main.indexOf('app.setPath("userData", targetUserDataPath)') < main.indexOf("app.requestSingleInstanceLock()"), "stable userData identity is set before the singleton lock");
 assert.match(main, /tray\.setToolTip\(brand\.displayName\)/, "tray tooltip uses the display name");
 assert.match(main, /title:\s*brand\.displayName/, "native window title uses the display name");
 assert.match(main, /`\$\{brand\.slug\}-History-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.json`/, "history export uses the branded slug");
