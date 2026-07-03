@@ -7,6 +7,7 @@ const { execFileSync } = require('node:child_process');
 const historicalIdentityNote = '> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.';
 
 const excludedPaths = /^(?:dist\/|release\/|docs\/superpowers\/|scripts\/verify-brand-references\.cjs$)/;
+const generatedDirectorySegment = /(?:^|\/)(?:bin|obj)\//;
 const binaryExtensions = /\.(?:bmp|gif|ico|jpe?g|onnx|onnx_data|pdf|png|ttf|woff2?|zip)$/i;
 const legacyReference = /next[\s._-]*step[\s._-]*ai/i;
 
@@ -75,7 +76,7 @@ function isAllowedLine(relativePath, line) {
 function auditRepository(root) {
   const violations = [];
   for (const relativePath of normalizedTrackedFiles(root)) {
-    if (excludedPaths.test(relativePath) || binaryExtensions.test(relativePath)) continue;
+    if (excludedPaths.test(relativePath) || generatedDirectorySegment.test(relativePath) || binaryExtensions.test(relativePath)) continue;
     if (legacyReference.test(relativePath)) {
       violations.push(`${relativePath}:0: active legacy brand in tracked path`);
     }

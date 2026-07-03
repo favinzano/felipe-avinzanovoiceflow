@@ -38,6 +38,17 @@ assert.deepEqual(auditRepository(validRoot), [], 'untracked files are outside th
 const activeRoot = createRepository({ 'README.md': `# ${legacyName} Voice\n` });
 assert.match(auditRepository(activeRoot)[0], /README\.md:1:/, 'active legacy copy reports path and line');
 
+const generatedDirectoryRoot = createRepository({
+  'tools/x/bin/generated.txt': `${legacyName} Voice generated output\n`,
+  'tools/x/obj/generated.txt': `${legacyName} Voice generated output\n`,
+  'tools/x/src/active.txt': `${legacyName} Voice active source\n`,
+});
+assert.deepEqual(
+  auditRepository(generatedDirectoryRoot),
+  [`tools/x/src/active.txt:1: ${legacyName} Voice active source`],
+  'bin and obj path segments are excluded without excluding nearby source',
+);
+
 const legacyPathRoot = createRepository({ [`Iniciar ${legacyName} Voice.bat`]: '@echo off\n' });
 assert.match(auditRepository(legacyPathRoot)[0], /Iniciar .* Voice\.bat:0:/, 'legacy tracked filenames are rejected');
 
