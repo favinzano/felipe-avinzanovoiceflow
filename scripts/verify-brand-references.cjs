@@ -3,39 +3,43 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { TextDecoder } = require('node:util');
 
 const historicalIdentityNote = '> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.';
 
 const excludedPaths = /^(?:dist\/|release\/|docs\/superpowers\/|scripts\/verify-brand-references\.cjs$)/;
-const generatedDirectorySegment = /(?:^|\/)(?:bin|obj)\//;
+const generatedDirectorySegment = /^tools\/[^/]+\/(?:bin|obj)\//;
 const binaryExtensions = /\.(?:bmp|gif|ico|jpe?g|onnx|onnx_data|pdf|png|ttf|woff2?|zip)$/i;
 const legacyReference = /next[\s._-]*step[\s._-]*ai/i;
 
 const historicalAllowlist = {
   'RELEASE_NOTES_1.0.0.md': [
-    /^# NextStepAI Voice 1\.0\.0$/,
-    /^NextStepAI Voice 1\.0\.0 es el primer lanzamiento /,
-    /^\| .+ \| Enfoque de NextStepAI Voice 1\.0\.0 \|$/,
-    /^OpenWhispr ofrece .+\. NextStepAI Voice$/,
-    /^- Instalador objetivo: `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`\.$/,
+    /^# NextStepAI Voice 1\.0\.0\s*$/,
+    /^NextStepAI Voice 1\.0\.0 es el primer lanzamiento para Windows x64 de nuestro\s*$/,
+    /^\| Área \| Enfoque de NextStepAI Voice 1\.0\.0 \|\s*$/,
+    /^OpenWhispr ofrece un alcance más amplio y multiplataforma\. NextStepAI Voice\s*$/,
+    /^- Instalador objetivo: `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`\.\s*$/,
   ],
   'docs/CERTIFICATION_REPORT_1.0.0.md': [
-    /^NextStepAI Voice `1\.0\.0` cumple /,
-    /^- `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`$/,
+    /^NextStepAI Voice `1\.0\.0` cumple la validación técnica automatizable disponible en el entorno actual\. El release permanece como candidato, no como distribución pública estable, hasta resolver firma de código y pruebas humanas\/multiequipo\.\s*$/,
+    /^- `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`\s*$/,
   ],
   'CHANGELOG.md': [
-    /^  `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`\.$/,
-    /^- NextStepAI Voice mantiene una implementaci/,
+    /^  `NextStepAI-Voice-Setup-1\.0\.0-x64\.exe`\.\s*$/,
+    /^- NextStepAI Voice mantiene una implementaciÃ³n independiente y especializada en\s*$/,
   ],
   'THIRD_PARTY_NOTICES.md': [
-    /^Aplicable a: NextStepAI Voice `1\.0\.0` para Windows x64$/,
-    /^NextStepAI Voice incluye, utiliza o descarga componentes de terceros\. Cada$/,
-    /^El helper autocontenido `NextStepAI\.PasteHelper\.exe` incluye componentes del$/,
-    /^Para solicitar una copia de los textos de licencia incluidos con NextStepAI$/,
+    /^Aplicable a: NextStepAI Voice `1\.0\.0` para Windows x64\s*$/,
+    /^NextStepAI Voice incluye, utiliza o descarga componentes de terceros\. Cada\s*$/,
+    /^El helper autocontenido `NextStepAI\.PasteHelper\.exe` incluye componentes del\s*$/,
+    /^Para solicitar una copia de los textos de licencia incluidos con NextStepAI\s*$/,
   ],
 };
 
 const compatibilityAllowlist = {
+  'docs/UPDATE_AND_ROLLBACK.md': [
+    /^- \[ \] Renombrar el repositorio `favinzano\/nextstepai-voice` a `favinzano\/felipe-avinzanovoiceflow`\.\s*$/,
+  ],
   'src/brand-config.json': [
     /^\s+"NextStepAI Voice",$/,
     /^\s+"NextStepAI Voice Development"[,]?$/,
@@ -60,6 +64,9 @@ const compatibilityAllowlist = {
   'scripts/release-brand.test.cjs': [
     /^const forbidden = \/NEXTSTEPAI\|NextStepAI Voice\|NextStepAI\\\.PasteHelper\|nextstepai-voice\|NextStepAI-Voice-Setup\/i;$/,
   ],
+  'scripts/verify-brand-references.test.cjs': [
+    /^const mandatedHistoricalIdentityNote = '> Identidad anterior: NextStepAI Voice\. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow\.';\s*$/,
+  ],
 };
 
 function normalizedTrackedFiles(root) {
@@ -73,18 +80,59 @@ function isAllowedLine(relativePath, line) {
   return patterns.some((pattern) => pattern.test(line));
 }
 
-function auditRepository(root) {
+function decodeTrackedText(contents) {
+  let text;
+  if (contents[0] === 0xff && contents[1] === 0xfe) {
+    if ((contents.length - 2) % 2 !== 0) return { error: 'invalid UTF-16LE' };
+    text = contents.subarray(2).toString('utf16le');
+  } else if (contents[0] === 0xfe && contents[1] === 0xff) {
+    if ((contents.length - 2) % 2 !== 0) return { error: 'invalid UTF-16BE' };
+    const littleEndian = Buffer.allocUnsafe(contents.length - 2);
+    for (let index = 2; index < contents.length; index += 2) {
+      littleEndian[index - 2] = contents[index + 1];
+      littleEndian[index - 1] = contents[index];
+    }
+    text = littleEndian.toString('utf16le');
+  } else {
+    if (contents.includes(0)) return { error: 'NUL byte' };
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(contents);
+    } catch {
+      return { error: 'invalid UTF-8' };
+    }
+  }
+  if (text.includes('\0')) return { error: 'NUL character' };
+  return { text };
+}
+
+function auditRepository(root, { listTrackedFiles = normalizedTrackedFiles } = {}) {
   const violations = [];
-  for (const relativePath of normalizedTrackedFiles(root)) {
+  let trackedFiles;
+  try {
+    trackedFiles = listTrackedFiles(root);
+  } catch (error) {
+    return [`<repository>:0: unable to enumerate tracked files: ${error.message}`];
+  }
+  for (const relativePath of trackedFiles) {
     if (excludedPaths.test(relativePath) || generatedDirectorySegment.test(relativePath) || binaryExtensions.test(relativePath)) continue;
     if (legacyReference.test(relativePath)) {
       violations.push(`${relativePath}:0: active legacy brand in tracked path`);
     }
 
     const absolutePath = path.join(root, ...relativePath.split('/'));
-    const contents = fs.readFileSync(absolutePath);
-    if (contents.includes(0)) continue;
-    const text = contents.toString('utf8');
+    let contents;
+    try {
+      contents = fs.readFileSync(absolutePath);
+    } catch (error) {
+      violations.push(`${relativePath}:0: unauditable tracked text: ${error.message}`);
+      continue;
+    }
+    const decoded = decodeTrackedText(contents);
+    if (decoded.error) {
+      violations.push(`${relativePath}:0: unauditable tracked text: ${decoded.error}`);
+      continue;
+    }
+    const { text } = decoded;
     if (historicalAllowlist[relativePath] && !text.split(/\r?\n/).slice(0, 8).includes(historicalIdentityNote)) {
       violations.push(`${relativePath}:1: missing the required historical identity note`);
     }

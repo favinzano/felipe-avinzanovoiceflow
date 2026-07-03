@@ -38,7 +38,7 @@ Si una descarga queda incompleta o dañada, abre `Soporte` y selecciona `Reparar
 
 ## Estado de produccion
 
-La versión `1.0.0` se prepara como primer release para Windows x64. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
+La versión `1.1.1` es la versión actual para Windows x64. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
 
 ## Soporte
 

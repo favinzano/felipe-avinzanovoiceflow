@@ -66,7 +66,7 @@ for (const name of powershellScripts) {
 }
 
 const activeScripts = fs.readdirSync(__dirname)
-  .filter((name) => /\.(?:cjs|ps1)$/.test(name) && !['release-brand.test.cjs', 'verify-brand-references.cjs'].includes(name));
+  .filter((name) => /\.(?:cjs|ps1)$/.test(name) && !['release-brand.test.cjs', 'verify-brand-references.cjs', 'verify-brand-references.test.cjs'].includes(name));
 const forbidden = /NEXTSTEPAI|NextStepAI Voice|NextStepAI\.PasteHelper|nextstepai-voice|NextStepAI-Voice-Setup/i;
 for (const name of activeScripts) {
   const source = fs.readFileSync(path.join(__dirname, name), 'utf8');

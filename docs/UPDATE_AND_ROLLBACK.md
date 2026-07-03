@@ -1,5 +1,15 @@
 # Estrategia De Actualización Y Rollback
 
+## Gate De Transición Del Repositorio
+
+Antes de publicar esta compilación:
+
+- [ ] Renombrar el repositorio `favinzano/nextstepai-voice` a `favinzano/felipe-avinzanovoiceflow`.
+- [ ] Actualizar el origen local con `git remote set-url origin https://github.com/favinzano/felipe-avinzanovoiceflow.git`.
+- [ ] Verificar que el nuevo URL, la página de incidencias y el destino de publicación sean accesibles.
+
+El cambio externo se realiza durante el handoff final; este repositorio no debe publicar la compilación antes de completar y verificar este gate.
+
 ## Actualización Automática
 
 1. Incrementar la versión semántica en `package.json`.
