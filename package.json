@@ -86,7 +86,7 @@
                                              "from":  "native/win32-x64",
                                              "to":  "native/win32-x64",
                                              "filter":  [
-                                                            "NextStepAI.PasteHelper.exe"
+                                                            "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
                                                         ]
                                          }
                                      ],
