@@ -3,6 +3,7 @@ const { constants } = require("node:fs");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const brand = require("./brand-config.cjs");
 const { migrateBrandData, migrationMarkerPath, sameMigrationPath } = require("./brand-migration.cjs");
 
 async function sandbox(fn) {
@@ -47,6 +48,17 @@ function barrier(parties) {
 async function run() {
   assert.equal(sameMigrationPath("/data/VoiceFlow", "/data/voiceflow", "win32"), true);
   assert.equal(sameMigrationPath("/data/VoiceFlow", "/data/voiceflow", "linux"), false);
+
+  await sandbox(async (appDataPath) => {
+    const prior = path.join(appDataPath, brand.legacyDataNames[0]);
+    const preliminary = path.join(appDataPath, brand.legacyDataNames[1]);
+    await json(path.join(prior, "voice-state.json"), { chosen: "prior-production" });
+    await json(path.join(preliminary, "voice-state.json"), { chosen: "preliminary" });
+    const productionLegacyNames = brand.legacyDataNames.filter((name) => !name.endsWith(" Development"));
+    const result = await migrateBrandData({ appDataPath, targetName: "VoiceFlow", legacyNames: productionLegacyNames });
+    assert.equal(result.sourcePath, prior, "the immediate prior production identity wins when both migration sources exist");
+    assert.deepEqual(JSON.parse(await fs.readFile(path.join(appDataPath, "VoiceFlow/voice-state.json"))), { chosen: "prior-production" });
+  });
 
   await sandbox(async (appDataPath) => {
     const sourcePath = path.join(appDataPath, "Legacy");

@@ -90,6 +90,34 @@ assert.match(
   /powershell\s+-NoProfile\s+-ExecutionPolicy\s+Bypass\s+-File\s+scripts\/verify-signature\.ps1\s+-ReleaseFlavor\s+["']?\$\{\{\s*matrix\.flavor\s*\}\}["']?/,
   'signed workflow passes every matrix flavor explicitly to independent signature verification',
 );
+const windowsCheckWorkflow = fs.readFileSync(path.join(root, '.github/workflows/windows-release-check.yml'), 'utf8');
+for (const [source, name] of [[signedWorkflow, 'signed release workflow'], [windowsCheckWorkflow, 'Windows release check workflow']]) {
+  assert.doesNotMatch(source, forbidden, `${name} contains a legacy product identifier`);
+  assert.match(source, /src\/brand-config\.json/, `${name} loads the canonical brand config`);
+  assert.match(source, /PRODUCT_SLUG/, `${name} exports the canonical slug`);
+  assert.match(source, /PRODUCT_DISPLAY_NAME/, `${name} exports the canonical display name`);
+  assert.match(source, /HELPER_EXECUTABLE/, `${name} exports the canonical helper executable`);
+  assert.match(source, /\$\{\{\s*env\.PRODUCT_SLUG\s*\}\}/, `${name} derives artifact patterns from the canonical slug`);
+}
+
+const trayTest = fs.readFileSync(path.join(__dirname, 'test-tray.ps1'), 'utf8');
+assert.equal((trayTest.match(/--test-user-data=`"\$/g) || []).length, 2, 'both tray launches quote explicit isolated app roots');
+assert.doesNotMatch(trayTest, /--user-data-dir|\$env:APPDATA/i, 'tray QA cannot fall back to Chromium-only or live AppData paths');
+assert.match(trayTest, /Join-Path \$hiddenProfile ["']userData["']/);
+assert.match(trayTest, /Join-Path \$profile ["']userData["']/);
+assert.match(trayTest, /taskkill\.exe \/PID \$process\.Id \/T \/F/, 'tray cleanup terminates only the launched Electron process tree');
+assert.match(trayTest, /throw ["']Tray QA failed to clean isolated root:/, 'tray cleanup fails when an isolated root cannot be removed');
+assert.match(trayTest, /\$hiddenProcess\s*=\s*\$null[\s\S]*?try\s*\{[\s\S]*?Start-Process[\s\S]*?finally\s*\{[\s\S]*?Stop-TestProcessTree \$hiddenProcess[\s\S]*?Remove-TestRoot \$hiddenProfile/, 'hidden tray cleanup covers setup and launch failures');
+assert.match(trayTest, /\$process\s*=\s*\$null[\s\S]*?try\s*\{[\s\S]*?Start-Process[\s\S]*?finally\s*\{[\s\S]*?Stop-TestProcessTree \$process[\s\S]*?Remove-TestRoot \$profile/, 'visible tray cleanup covers setup and launch failures');
+const installerTest = fs.readFileSync(path.join(__dirname, 'test-installer.ps1'), 'utf8');
+assert.match(installerTest, /--test-user-data=`"\$isolatedRoot`"/, 'installer QA launches with a quoted explicit isolated app root');
+assert.doesNotMatch(installerTest, /\$env:APPDATA/i, 'installer QA never accesses live AppData');
+assert.match(installerTest, /Join-Path \$isolatedRoot ["']userData["']/);
+assert.match(installerTest, /Join-Path \$isolatedRoot ["']sessionData["']/, 'installer verifies Chromium session data under the isolated root');
+assert.match(installerTest, /Get-ChildItem -LiteralPath \$isolatedSessionData/, 'installer requires packaged Chromium to populate isolated session data');
+assert.match(installerTest, /\$isolatedRoot\s*=\s*\[IO\.Path\]::GetFullPath\(\(Join-Path \$env:TEMP/, 'installer normalizes the full isolated root before containment checks');
+assert.match(installerTest, /StartsWith\(\$tempRootWithSeparator,\s*\[StringComparison\]::OrdinalIgnoreCase\)/, 'installer TEMP containment check handles short paths and Windows case-insensitivity');
+assert.match(installerTest, /finally\s*\{[\s\S]*Remove-Item -LiteralPath \$isolatedRoot/, 'installer QA always cleans its isolated root');
 
 const historicalRelease = fs.readFileSync(path.join(__dirname, 'release-1.1.0.ps1'), 'utf8');
 assert.doesNotMatch(historicalRelease, /git\s+reset\s+--hard/i);
@@ -103,11 +131,12 @@ for (const writeCall of historicalRelease.match(/\[IO\.File\]::WriteAllText\([^\
 assert.ok(historicalRelease.indexOf('$WorkingTree = & git status --porcelain') < historicalRelease.indexOf('[IO.File]::WriteAllText($PackagePath, $PackageJson'));
 
 const mainSource = fs.readFileSync(path.join(root, 'src/main.cjs'), 'utf8');
-assert.match(mainSource, /resolveSelfTestPaths\(process\.argv\)/);
+assert.match(mainSource, /resolveIsolatedAppPaths\(process\.argv\)/);
 assert.match(mainSource, /const allowTestInstance = process\.argv\.includes\("--allow-test-instance"\) \|\| Boolean\(selfTestPaths\)/);
 assert.match(mainSource, /app\.setPath\("userData", targetUserDataPath\)/);
-assert.match(mainSource, /app\.setPath\("sessionData", selfTestPaths\?\.sessionData/);
-assert.match(mainSource, /const migrationPromise = selfTestPaths/);
+assert.match(mainSource, /app\.setPath\("sessionData", initialSessionDataPath\)/);
+assert.match(mainSource, /const migrationPromise = isolatedPaths/);
+assert.match(mainSource, /if \(!isolatedTestMode\)\s*\{\s*initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
 
 const signatureProbe = spawnSync('powershell', [
   '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
@@ -140,5 +169,6 @@ assert.doesNotMatch(signatureSource, /Get-ChildItem/);
 
 require('./generate-release-notes.test.cjs');
 require('../src/self-test-paths.test.cjs');
+require('../src/login-item-transition.test.cjs');
 
 console.log('Release brand paths and script derivation verified.');

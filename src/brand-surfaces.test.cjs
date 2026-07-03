@@ -34,7 +34,7 @@ assert.match(main, /app\.setName\(brand\.displayName\)/, "native app name uses b
 assert.match(main, /app\.setAppUserModelId\(brand\.appId\)/, "Windows identity uses brand.appId");
 assert.match(main, /shell\.openExternal\(brand\.issueUrl\)/, "support opens the canonical issue URL");
 assert.doesNotMatch(main, /com\.nextstepai\.voice/i, "legacy app ID is inactive");
-assert.match(main, /const migrationPromise\s*=\s*selfTestPaths\s*\?\s*Promise\.resolve/, "isolated self-tests bypass migration before readiness");
+assert.match(main, /const migrationPromise\s*=\s*isolatedPaths\s*\?\s*Promise\.resolve/, "all isolated test modes bypass migration before readiness");
 assert.match(main, /:\s*hasSingleInstanceLock\s*\?\s*migrateBrandData\(/, "the normal owning instance starts migration before readiness");
 assert.match(main, /app\.whenReady\(\)\.then\(async \(\) => \{\s*brandMigration\s*=\s*await migrationPromise;/, "migration is the first readiness bootstrap step");
 assert.match(main, /app\.whenReady\(\)[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*app\.exit\(1\)/, "unexpected bootstrap rejection is handled");
@@ -44,7 +44,7 @@ assert.doesNotMatch(main, /app\.getPath\(["']userData["']\)/, "state consumers d
 assert.match(main, /const fsSync\s*=\s*require\(["']node:fs["']\)/, "hold-mode helper has a synchronous filesystem binding");
 assert.match(main, /fsSync\.existsSync\(helper\)/, "hold-mode helper existence check uses the bound filesystem");
 assert.match(main, /app\.setPath\(["']userData["'],\s*targetUserDataPath\)/, "single-instance identity always uses target userData");
-assert.match(main, /app\.setPath\(["']sessionData["'],\s*selfTestPaths\?\.sessionData\s*\|\|\s*initialSessionDataPath\)/, "Chromium receives isolated or normal pre-ready sessionData");
+assert.match(main, /app\.setPath\(["']sessionData["'],\s*initialSessionDataPath\)/, "Chromium receives isolated or normal pre-ready sessionData");
 assert.equal((main.match(/app\.setPath\(["'](?:userData|sessionData)["']/g) || []).length, 2, "Electron data paths are never rebound after startup");
 assert.ok(main.indexOf('app.setPath("userData", targetUserDataPath)') < main.indexOf("app.requestSingleInstanceLock()"), "stable userData identity is set before the singleton lock");
 assert.match(main, /tray\.setToolTip\(brand\.displayName\)/, "tray tooltip uses the display name");
@@ -52,6 +52,13 @@ assert.match(main, /title:\s*brand\.displayName/, "native window title uses the 
 assert.match(main, /`\$\{brand\.slug\}-History-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.json`/, "history export uses the branded slug");
 assert.match(main, /["']native["'],\s*["']win32-x64["'],\s*brand\.helperExecutable/, "native helper path uses the brand contract");
 assert.match(main, /brandMigration:\s*safeBrandMigrationDiagnostics\(\)/, "diagnostics expose a sanitized migration summary");
+assert.match(main, /const preserveLegacyStorage\s*=\s*!isolatedPaths\s*&&\s*Boolean\(/, "only a real first legacy transition preserves Chromium storage");
+assert.match(main, /additionalArguments:\s*\[`--voiceflow-preserve-legacy-storage=\$\{preserveLegacyStorage\s*\?\s*['"]1['"]\s*:\s*['"]0['"]\}`\]/, "main window passes the transition flag through an appended renderer argument");
+assert.match(preload, /filter\(\(value\) => value\.startsWith\(["']--voiceflow-preserve-legacy-storage=["']\)\)\.at\(-1\)/, "main preload uses the final appended transition argument");
+assert.match(preload, /preserveLegacyStorage:\s*preserveLegacyStorageArgument\s*===\s*["']--voiceflow-preserve-legacy-storage=1["']/, "main preload exposes the narrow transition boolean");
+assert.doesNotMatch(overlayPreload, /preserveLegacyStorage/, "overlay preload remains outside the migration storage contract");
+assert.match(renderer, /clearMigratedLegacyStorage\(localStorage,\s*voiceAPI\.runtime\.preserveLegacyStorage\)/, "renderer delegates rollback-safe cleanup to the tested helper");
+assert.doesNotMatch(renderer, /localStorage\.removeItem\(["']voice-(?:settings|history|dictionary|microphone)["']\)/, "renderer never removes migration keys directly");
 
 assertRendererBrand(preload, "main preload");
 assertRendererBrand(overlayPreload, "overlay preload");

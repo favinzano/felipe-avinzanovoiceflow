@@ -7,7 +7,8 @@ const { execFile, spawn } = require("child_process");
 const brand = require("./brand-config.cjs");
 const { migrateBrandData } = require("./brand-migration.cjs");
 const { prepareBrandElectronPaths } = require("./brand-session-path.cjs");
-const { resolveSelfTestPaths } = require('./self-test-paths.cjs');
+const { resolveIsolatedAppPaths } = require('./self-test-paths.cjs');
+const { disableLegacyLoginItems } = require('./login-item-transition.cjs');
 const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
@@ -59,37 +60,40 @@ let brandMigration = { status: "pending" };
 let bootstrapComplete = false;
 let pendingShowMainWindow = false;
 const startHidden = process.argv.includes("--hidden");
-const selfTestPaths = resolveSelfTestPaths(process.argv);
+const isolatedPaths = resolveIsolatedAppPaths(process.argv);
+const selfTestPaths = isolatedPaths?.mode === 'self-test' ? isolatedPaths : null;
+const isolatedTestMode = Boolean(isolatedPaths);
 const allowTestInstance = process.argv.includes("--allow-test-instance") || Boolean(selfTestPaths);
 
 app.setName(brand.displayName);
 const appDataPath = app.getPath("appData");
 const targetUserDataName = app.isPackaged ? brand.displayName : brand.developmentName;
-const targetUserDataPath = selfTestPaths?.userData || path.join(appDataPath, targetUserDataName);
-const legacyUserDataNames = selfTestPaths ? [] : brand.legacyDataNames.filter((name) => {
+const targetUserDataPath = isolatedPaths?.userData || path.join(appDataPath, targetUserDataName);
+const legacyUserDataNames = isolatedPaths ? [] : brand.legacyDataNames.filter((name) => {
   return app.isPackaged ? !name.endsWith(" Development") : name.endsWith(" Development");
 });
 const legacyUserDataPaths = legacyUserDataNames.map((name) => path.join(appDataPath, name));
-const preparedBrandPaths = selfTestPaths || prepareBrandElectronPaths({
+const preparedBrandPaths = isolatedPaths || prepareBrandElectronPaths({
   targetPath: targetUserDataPath,
   legacyPaths: legacyUserDataPaths
 });
-const initialSessionDataPath = preparedBrandPaths.sessionDataPath;
+const initialSessionDataPath = isolatedPaths?.sessionData || preparedBrandPaths.sessionDataPath;
 const existingLegacyUserDataPath = preparedBrandPaths.existingLegacyDataPath;
+const preserveLegacyStorage = !isolatedPaths && Boolean(existingLegacyUserDataPath && initialSessionDataPath === existingLegacyUserDataPath);
 let activeUserDataPath = existingLegacyUserDataPath || targetUserDataPath;
 
 // userData remains stable for single-instance identity. During the first migration,
 // sessionData intentionally reads legacy Local Storage/IndexedDB; the marker moves the
 // next launch to target without rebinding either Electron path after readiness.
 app.setPath("userData", targetUserDataPath);
-app.setPath("sessionData", selfTestPaths?.sessionData || initialSessionDataPath);
+app.setPath("sessionData", initialSessionDataPath);
 if (process.platform === "win32") app.setAppUserModelId(brand.appId);
 const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 const migrationResultUsesTarget = (result) => {
   return ["migrated", "not-needed", "already-migrated"].includes(result.status);
 };
-const migrationPromise = selfTestPaths
+const migrationPromise = isolatedPaths
   ? Promise.resolve({ status: "not-needed", targetPath: targetUserDataPath })
   : hasSingleInstanceLock
   ? migrateBrandData({
@@ -242,9 +246,20 @@ function hideToTray() {
 
 function configureAutoStart(enabled) {
   const shouldEnable = Boolean(enabled);
-  if (process.platform !== "win32" || !app.isPackaged) return false;
+  if (process.platform !== "win32" || !app.isPackaged || isolatedTestMode) return false;
+
+  disableLegacyLoginItems({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    isolated: isolatedTestMode,
+    exePath: app.getPath("exe"),
+    localAppData: process.env.LOCALAPPDATA,
+    legacyNames: brand.legacyDataNames,
+    setter: (settings) => app.setLoginItemSettings(settings)
+  });
 
   app.setLoginItemSettings({
+    name: brand.displayName,
     openAtLogin: shouldEnable,
     path: app.getPath("exe"),
     args: ["--hidden"]
@@ -467,6 +482,7 @@ function configureAutoUpdater() {
 }
 
 function checkForUpdates(interactive = false) {
+  if (isolatedTestMode) return;
   if (!app.isPackaged) {
     if (interactive) {
       dialog.showMessageBox({
@@ -638,6 +654,7 @@ function createWindow() {
     },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: [`--voiceflow-preserve-legacy-storage=${preserveLegacyStorage ? '1' : '0'}`],
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false
@@ -860,9 +877,11 @@ app.whenReady().then(async () => {
       detail: "No se eliminó ningún dato. Cierra la aplicación y vuelve a intentarlo."
     }).catch(() => {});
   }
-  initializeAutoStart();
-  configureAutoUpdater();
-  checkForUpdates();
+  if (!isolatedTestMode) {
+    initializeAutoStart();
+    configureAutoUpdater();
+    checkForUpdates();
+  }
 
   try {
     registerGlobalShortcuts(getShortcuts(activeUserDataPath), getShortcutMode(activeUserDataPath));
@@ -1013,6 +1032,7 @@ ipcMain.handle("preferences:set-shortcut-mode", (_event, mode) => {
   }
 });
 ipcMain.handle("preferences:get-autostart", () => {
+  if (isolatedTestMode) return getAutoStartEnabled(activeUserDataPath);
   if (process.platform !== "win32" || !app.isPackaged) return false;
   const enabled = app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
   setAutoStartEnabled(activeUserDataPath, enabled);

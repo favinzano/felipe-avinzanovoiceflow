@@ -1,6 +1,7 @@
 const assert = require("assert");
 const {
   ACCURACY_DEFAULT_MARKER,
+  clearMigratedLegacyStorage,
   initializeProductionProfile,
   PRODUCTION_PROFILE_MARKER,
   upgradeAccuracyDefault
@@ -40,5 +41,13 @@ assert.equal(upgradeAccuracyDefault(accuracyUpgrade), false);
 const preservedAccurate = createStorage({ "voice-settings": JSON.stringify({ whisperProfile: "accurate" }) });
 upgradeAccuracyDefault(preservedAccurate);
 assert.equal(JSON.parse(preservedAccurate.getItem("voice-settings")).whisperProfile, "accurate");
+
+const legacyTransitionStorage = createStorage({ "voice-settings": "settings", "voice-history": "history", "voice-dictionary": "dictionary", "voice-microphone": "microphone" });
+assert.deepEqual(clearMigratedLegacyStorage(legacyTransitionStorage, true), []);
+for (const key of ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]) assert.equal(legacyTransitionStorage.has(key), true);
+
+const targetStorage = createStorage({ "voice-settings": "settings", "voice-history": "history", "voice-dictionary": "dictionary", "voice-microphone": "microphone" });
+assert.deepEqual(clearMigratedLegacyStorage(targetStorage, false), ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]);
+for (const key of ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]) assert.equal(targetStorage.has(key), false);
 
 console.log("Data migrations: 13 checks passed.");

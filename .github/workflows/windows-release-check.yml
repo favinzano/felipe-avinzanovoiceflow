@@ -19,6 +19,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Load brand contract
+        shell: pwsh
+        run: |
+          $brand = Get-Content -LiteralPath "src/brand-config.json" -Raw | ConvertFrom-Json
+          "PRODUCT_SLUG=$($brand.slug)" >> $env:GITHUB_ENV
+          "PRODUCT_DISPLAY_NAME=$($brand.displayName)" >> $env:GITHUB_ENV
+          "HELPER_EXECUTABLE=$($brand.helperBaseName).exe" >> $env:GITHUB_ENV
       - run: npm test
       - run: npm run test:production
       - run: npm run test:models
@@ -30,9 +37,9 @@ jobs:
       - run: npm run release:test-tray
       - uses: actions/upload-artifact@v4
         with:
-          name: felipe-avinzanovoiceflow-windows
+          name: ${{ env.PRODUCT_SLUG }}-windows
           path: |
-            release/felipe-avinzanovoiceflow-Setup-*.exe
-            release/felipe-avinzanovoiceflow-Setup-*.exe.blockmap
+            release/${{ env.PRODUCT_SLUG }}-Setup-*.exe
+            release/${{ env.PRODUCT_SLUG }}-Setup-*.exe.blockmap
             release/latest.yml
-            release/felipe-avinzanovoiceflow-Setup-*.sha256
+            release/${{ env.PRODUCT_SLUG }}-Setup-*.sha256

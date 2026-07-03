@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const brand = require("./brand-config.cjs");
 const sessionPaths = require("./brand-session-path.cjs");
 
 const { prepareBrandElectronPaths } = sessionPaths;
@@ -62,6 +63,15 @@ const markerPath = path.join(targetPath, ".voiceflow-brand-migration-v1.json");
   assert.equal(result.userDataPath, targetPath, "single-instance userData identity stays on target");
   assert.equal(result.sessionDataPath, legacyPath, "unmigrated Chromium session reads legacy storage");
   assert.equal(result.existingLegacyDataPath, legacyPath);
+}
+
+{
+  const priorProductionPath = path.join("app-data", brand.legacyDataNames[0]);
+  const preliminaryPath = path.join("app-data", brand.legacyDataNames[1]);
+  const operations = fakeOperations([[targetPath, directory], [preliminaryPath, directory], [priorProductionPath, directory]]);
+  const legacyPaths = brand.legacyDataNames.filter((name) => !name.endsWith(" Development")).map((name) => path.join("app-data", name));
+  const result = prepareBrandElectronPaths({ targetPath, legacyPaths, operations });
+  assert.equal(result.sessionDataPath, priorProductionPath, "the immediate prior production identity wins when both legacy sessions exist");
 }
 
 {

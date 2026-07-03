@@ -26,10 +26,10 @@ const expected = {
     url: 'https://github.com/favinzano/felipe-avinzanovoiceflow',
   },
   legacyDataNames: [
-    'felipe avinzano Voice',
     'NextStepAI Voice',
-    'felipe avinzano Voice Development',
+    'felipe avinzano Voice',
     'NextStepAI Voice Development',
+    'felipe avinzano Voice Development',
   ],
 };
 

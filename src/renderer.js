@@ -4,7 +4,7 @@ const { cleanTranscription } = require("./text-cleanup.cjs");
 const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
 const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-const { initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
+const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
 
 const voiceAPI = window.voiceAPI || {
   brand: {
@@ -13,7 +13,7 @@ const voiceAPI = window.voiceAPI || {
     suffix: "Flow",
     copper: "#B66D45"
   },
-  runtime: { isPackaged: false },
+  runtime: { isPackaged: false, preserveLegacyStorage: false },
   copy: async (text) => navigator.clipboard?.writeText(text),
   paste: async (text) => navigator.clipboard?.writeText(text),
   exportHistory: async () => false,
@@ -65,8 +65,10 @@ function brandWordmarkMarkup() {
 
 applyBrand(brand);
 
-initializeProductionProfile(localStorage, voiceAPI.runtime.isPackaged);
-upgradeAccuracyDefault(localStorage);
+if (!voiceAPI.runtime.preserveLegacyStorage) {
+  initializeProductionProfile(localStorage, voiceAPI.runtime.isPackaged);
+  upgradeAccuracyDefault(localStorage);
+}
 
 const defaults = {
   language: "spanish",
@@ -754,10 +756,7 @@ async function initializeApp() {
   history = persisted.history.map((item) => ({ ...item, id: item.id || crypto.randomUUID() }));
   dictionary = persisted.dictionary;
   persistedMicrophone = persisted.microphone;
-  localStorage.removeItem("voice-settings");
-  localStorage.removeItem("voice-history");
-  localStorage.removeItem("voice-dictionary");
-  localStorage.removeItem("voice-microphone");
+  clearMigratedLegacyStorage(localStorage, voiceAPI.runtime.preserveLegacyStorage);
 
   createWaveform();
   await hydrateSettings();

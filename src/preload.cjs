@@ -7,10 +7,15 @@ const rendererBrand = Object.freeze({
   suffix: brand.suffix,
   copper: brand.copper
 });
+const preserveLegacyStorageArgument = process.argv.filter((value) => value.startsWith("--voiceflow-preserve-legacy-storage=")).at(-1);
+const rendererRuntime = Object.freeze({
+  isPackaged: !process.defaultApp,
+  preserveLegacyStorage: preserveLegacyStorageArgument === "--voiceflow-preserve-legacy-storage=1"
+});
 
 contextBridge.exposeInMainWorld("voiceAPI", {
   brand: rendererBrand,
-  runtime: { isPackaged: !process.defaultApp },
+  runtime: rendererRuntime,
   copy: (text) => ipcRenderer.invoke("clipboard:write", text),
   paste: (text) => ipcRenderer.invoke("clipboard:paste", text),
   exportHistory: (entries) => ipcRenderer.invoke("history:export", entries),
