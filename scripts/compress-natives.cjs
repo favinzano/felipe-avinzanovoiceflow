@@ -48,7 +48,7 @@ if (process.platform !== 'win32') {
 try {
   runUpx('--version', process.cwd());
 } catch {
-  warn('UPX no esta instalado o no esta disponible en PATH; el empaquetado continuara sin comprimir DLL.');
+  warn('UPX no esta instalado o no esta disponible en PATH; el empaquetado continuara sin comprimir binarios nativos.');
   process.exit(0);
 }
 
@@ -60,7 +60,7 @@ if (fs.existsSync(dllDirectory)) {
     .filter((entry) => entry.isFile() && /^[A-Za-z0-9_.-]+\.dll$/i.test(entry.name))
     .map((entry) => path.join(dllDirectory, entry.name));
 } else {
-  warn(`No se encontro el directorio de DLL de onnxruntime-node: ${dllDirectory}`);
+  warn(`No se encontro el directorio de binarios nativos de onnxruntime-node: ${dllDirectory}`);
 }
 
 const helperPath = path.resolve(__dirname, '..', 'native', 'win32-x64', brand.helperExecutable);

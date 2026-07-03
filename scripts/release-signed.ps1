@@ -11,6 +11,10 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$brand = Get-Content -LiteralPath (Join-Path $projectRoot "src\brand-config.json") -Raw | ConvertFrom-Json
+$productName = $brand.displayName
+$productSlug = $brand.slug
+$helperExecutable = "$($brand.helperBaseName).exe"
 $releaseDir = Join-Path $projectRoot "release"
 $temporaryCertificatePath = $null
 
@@ -103,7 +107,7 @@ function Resolve-Certificate {
     throw "Define SIGNING_PFX_PATH o SIGNING_PFX_BASE64 para proporcionar el certificado de firma."
   }
 
-  $script:temporaryCertificatePath = Join-Path ([System.IO.Path]::GetTempPath()) "nextstepai-signing-$PID.pfx"
+  $script:temporaryCertificatePath = Join-Path ([System.IO.Path]::GetTempPath()) "$productSlug-signing-$PID.pfx"
   try {
     $certificateBytes = [Convert]::FromBase64String($env:SIGNING_PFX_BASE64)
   } catch {
@@ -180,7 +184,7 @@ try {
     }
 
     $version = (Get-Content -LiteralPath (Join-Path $projectRoot "package.json") -Raw | ConvertFrom-Json).version
-    $artifactName = "NextStepAI-Voice-Setup-$version-$Flavor-x64.exe"
+    $artifactName = "$productSlug-Setup-$version-$Flavor-x64.exe"
 
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "release:verify-acceptance")
     Invoke-NativeCommand -FilePath "npm.cmd" -ArgumentList @("run", "build")
@@ -202,8 +206,8 @@ try {
       "--config.win.signtoolOptions.rfc3161TimeStampServer=$TimestampUrl"
     )
 
-    $application = Join-Path $releaseDir "win-unpacked\NextStepAI Voice.exe"
-    $pasteHelper = Join-Path $releaseDir "win-unpacked\resources\native\win32-x64\NextStepAI.PasteHelper.exe"
+    $application = Join-Path (Join-Path $releaseDir "win-unpacked") "$productName.exe"
+    $pasteHelper = Join-Path (Join-Path $releaseDir "win-unpacked\resources\native\win32-x64") $helperExecutable
     if (-not (Test-Path -LiteralPath $application)) {
       throw "No se encontro la aplicacion desempaquetada: $application"
     }

@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-Creates the official NextStepAI Voice v1.1.0 release commit and tag.
+Creates the official branded v1.1.0 release commit and tag.
 
 .DESCRIPTION
 Requires:
@@ -17,17 +17,19 @@ independently.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$Brand = Get-Content -LiteralPath (Join-Path $ProjectRoot "src\brand-config.json") -Raw | ConvertFrom-Json
 
 $Version = "1.1.0"
 $TagName = "v$Version"
 $CommitMessage = "release(v1.1.0): implement push-to-talk, taskbar overlay states, UPX compression, and parallel AVX2 pipelines"
-$TagMessage = "NextStepAI Voice v1.1.0 Production Release - AVX2 Ready Platform"
+$TagMessage = "$($Brand.displayName) v1.1.0 Production Release - AVX2 Ready Platform"
 
 # $PackagePath = Join-Path $PSScriptRoot "package.json"
 # $ChangelogPath = Join-Path $PSScriptRoot "CHANGELOG.md"
 
-$PackagePath = "C:\Users\User One\Documents\NextStepAI Voice\package.json"
-$ChangelogPath = "C:\Users\User One\Documents\NextStepAI Voice\CHANGELOG.md"
+$PackagePath = Join-Path $ProjectRoot "package.json"
+$ChangelogPath = Join-Path $ProjectRoot "CHANGELOG.md"
 
 
 $ReleaseNotes = @"
@@ -81,7 +83,7 @@ function Restore-LocalRepository {
 
 try {
     # Push-Location $PSScriptRoot
-    Push-Location "C:\Users\User One\Documents\NextStepAI Voice"
+    Push-Location $ProjectRoot
 
 
     Invoke-Git @("rev-parse", "--is-inside-work-tree")
@@ -114,6 +116,10 @@ try {
     }
     if ($OriginUrl -notmatch "^(https://github\.com/|git@github\.com:)") {
         throw "Release blocked: origin does not point to GitHub. Current origin: $OriginUrl"
+    }
+    $ExpectedRepository = $Brand.repository.slug
+    if ($OriginUrl -notmatch [regex]::Escape($ExpectedRepository)) {
+        throw "Release blocked: origin does not match $ExpectedRepository. Current origin: $OriginUrl"
     }
 
     Invoke-Git @("fetch", "origin", "main", "--tags")
@@ -168,7 +174,7 @@ try {
     Invoke-Git @("push", "--atomic", "origin", "main", "--tags")
     $PushCompleted = $true
 
-    Write-Host "Successfully released NextStepAI Voice $TagName."
+    Write-Host "Successfully released $($Brand.displayName) $TagName."
 }
 catch {
     Write-Error $_

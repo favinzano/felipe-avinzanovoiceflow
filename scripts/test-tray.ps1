@@ -1,7 +1,9 @@
 $ErrorActionPreference = "Stop"
 
-$application = (Resolve-Path "release\win-unpacked\NextStepAI Voice.exe").Path
-$hiddenProfile = Join-Path $env:TEMP ("nextstepai-hidden-tray-test-" + [Guid]::NewGuid())
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$brand = Get-Content -LiteralPath (Join-Path $projectRoot "src\brand-config.json") -Raw | ConvertFrom-Json
+$application = (Resolve-Path (Join-Path (Join-Path $projectRoot "release\win-unpacked") "$($brand.displayName).exe")).Path
+$hiddenProfile = Join-Path $env:TEMP ("$($brand.slug)-hidden-tray-test-" + [Guid]::NewGuid())
 New-Item -ItemType Directory -Path $hiddenProfile | Out-Null
 '{"autoStartEnabled":false,"closeBehavior":"tray"}' | Set-Content -Path (Join-Path $hiddenProfile "app-preferences.json") -Encoding utf8
 
@@ -25,7 +27,7 @@ finally {
   Remove-Item -LiteralPath $hiddenProfile -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$profile = Join-Path $env:TEMP ("nextstepai-tray-test-" + [Guid]::NewGuid())
+$profile = Join-Path $env:TEMP ("$($brand.slug)-tray-test-" + [Guid]::NewGuid())
 New-Item -ItemType Directory -Path $profile | Out-Null
 '{"autoStartEnabled":false,"closeBehavior":"tray"}' | Set-Content -Path (Join-Path $profile "app-preferences.json") -Encoding utf8
 
