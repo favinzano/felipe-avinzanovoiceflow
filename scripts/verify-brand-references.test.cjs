@@ -10,9 +10,18 @@ const { auditRepository } = require('./verify-brand-references.cjs');
 
 const legacyName = ['Next', 'Step', 'AI'].join('');
 const mandatedHistoricalIdentityNote = '> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.';
+const temporaryDirectoryPrefix = 'voiceflow-brand-audit-';
+const temporaryRoots = [];
+
+function listTemporaryRepositories() {
+  return fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith(temporaryDirectoryPrefix)).sort();
+}
+
+const temporaryRepositoriesBefore = listTemporaryRepositories();
 
 function createRepository(files) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'voiceflow-brand-audit-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), temporaryDirectoryPrefix));
+  temporaryRoots.push(root);
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: root });
   for (const [relativePath, contents] of Object.entries(files)) {
@@ -24,6 +33,7 @@ function createRepository(files) {
   return root;
 }
 
+try {
 const validRoot = createRepository({
   'README.md': '# felipe avinzano VoiceFlow\n',
   'dist/renderer.js': `const retiredLabel = '${legacyName} Voice';\n`,
@@ -72,6 +82,16 @@ const utf16BeRoot = createRepository({
 });
 assert.match(auditRepository(utf16BeRoot)[0], /notes\/utf16be\.txt:1:/, 'UTF-16BE text is decoded and audited');
 
+const malformedUtf16LeRoot = createRepository({
+  'notes/malformed-le.txt': Buffer.from([0xff, 0xfe, 0x00, 0xd8]),
+});
+assert.match(auditRepository(malformedUtf16LeRoot)[0], /notes\/malformed-le\.txt:0: unauditable tracked text: invalid UTF-16LE/, 'lone UTF-16LE surrogate fails closed');
+
+const malformedUtf16BeRoot = createRepository({
+  'notes/malformed-be.txt': Buffer.from([0xfe, 0xff, 0xd8, 0x00]),
+});
+assert.match(auditRepository(malformedUtf16BeRoot)[0], /notes\/malformed-be\.txt:0: unauditable tracked text: invalid UTF-16BE/, 'lone UTF-16BE surrogate fails closed');
+
 const nulRoot = createRepository({
   'notes/contains-nul.txt': Buffer.concat([Buffer.from(`${legacyName} Voice`, 'utf8'), Buffer.from([0])]),
 });
@@ -116,5 +136,10 @@ const transitionGuide = fs.readFileSync(path.join(projectRoot, 'docs', 'UPDATE_A
 const legacyRepository = ['favinzano', `${legacyName.toLowerCase()}-voice`].join('/');
 assert.match(transitionGuide, new RegExp('Renombrar el repositorio `' + legacyRepository + '` a `favinzano/felipe-avinzanovoiceflow`'), 'release gate documents the external repository rename');
 assert.match(transitionGuide, /git remote set-url origin https:\/\/github\.com\/favinzano\/felipe-avinzanovoiceflow\.git/, 'release gate documents the local origin update');
+
+} finally {
+  for (const root of temporaryRoots) fs.rmSync(root, { recursive: true, force: true });
+  assert.deepEqual(listTemporaryRepositories(), temporaryRepositoriesBefore, 'brand audit tests leave no temporary repositories');
+}
 
 console.log('Brand reference audit behavior verified.');

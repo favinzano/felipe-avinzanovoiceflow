@@ -83,16 +83,17 @@ function isAllowedLine(relativePath, line) {
 function decodeTrackedText(contents) {
   let text;
   if (contents[0] === 0xff && contents[1] === 0xfe) {
-    if ((contents.length - 2) % 2 !== 0) return { error: 'invalid UTF-16LE' };
-    text = contents.subarray(2).toString('utf16le');
-  } else if (contents[0] === 0xfe && contents[1] === 0xff) {
-    if ((contents.length - 2) % 2 !== 0) return { error: 'invalid UTF-16BE' };
-    const littleEndian = Buffer.allocUnsafe(contents.length - 2);
-    for (let index = 2; index < contents.length; index += 2) {
-      littleEndian[index - 2] = contents[index + 1];
-      littleEndian[index - 1] = contents[index];
+    try {
+      text = new TextDecoder('utf-16le', { fatal: true }).decode(contents.subarray(2));
+    } catch {
+      return { error: 'invalid UTF-16LE' };
     }
-    text = littleEndian.toString('utf16le');
+  } else if (contents[0] === 0xfe && contents[1] === 0xff) {
+    try {
+      text = new TextDecoder('utf-16be', { fatal: true }).decode(contents.subarray(2));
+    } catch {
+      return { error: 'invalid UTF-16BE' };
+    }
   } else {
     if (contents.includes(0)) return { error: 'NUL byte' };
     try {
