@@ -54,7 +54,8 @@ function applyBrand(brand) {
     target.textContent = brand.suffix;
   });
   document.querySelectorAll("[data-brand-label]").forEach((target) => {
-    target.setAttribute("aria-label", brand.displayName);
+    const labelSuffix = target.getAttribute("data-brand-label-suffix") || "";
+    target.setAttribute("aria-label", `${brand.displayName}${labelSuffix}`);
   });
 }
 
