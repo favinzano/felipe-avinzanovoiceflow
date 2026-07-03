@@ -65,7 +65,13 @@ function assertBrandCss(css, surface) {
   assert.match(css, /@font-face\s*\{[^}]*font-family:\s*["']?DM Serif Display["']?[^}]*font-weight:\s*400[^}]*\}/, `${surface} loads DM Serif Display at its native weight`);
   assert.match(css, /--copper:\s*#b66d45/i, `${surface} defines the approved copper token`);
   assert.match(css, /\.brand-flow\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif[^}]*font-weight:\s*400[^}]*color:\s*var\(--copper\)[^}]*\}/, `${surface} styles only the Flow suffix in copper DM Serif`);
-  const dmSerifRules = [...css.matchAll(/([^{}]+)\{([^{}]*font-family:\s*["']?DM Serif Display["']?[^{}]*)\}/g)]
+  const dmSerifName = String.raw`(?:["']DM\s+Serif\s+Display["']|DM\s+Serif\s+Display)`;
+  const dmSerifDeclaration = new RegExp(
+    String.raw`(?:^|;)\s*(?:font-family\s*:\s*[^;]*${dmSerifName}|font\s*:\s*[^;]*${dmSerifName})`,
+    'i'
+  );
+  const dmSerifRules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((match) => dmSerifDeclaration.test(match[2]))
     .map((match) => match[1].trim());
   assert.equal(dmSerifRules.filter((selector) => selector === '.brand-flow').length, 1, `${surface} styles one Flow suffix with DM Serif Display`);
   assert.ok(dmSerifRules.every((selector) => selector === '@font-face' || selector === '.brand-flow'), `${surface} reserves DM Serif Display for the Flow suffix`);
@@ -82,6 +88,11 @@ assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay 
 assert.doesNotMatch(indexHtml, /NextStepAI Voice/, "active main-window copy no longer uses the legacy product name");
 assertBrandCss(styles, "main stylesheet");
 assertBrandCss(overlayStyles, "overlay stylesheet");
+assert.throws(
+  () => assertBrandCss(`${styles}\n.hero-emphasis { font: 400 1em "DM Serif Display"; }`, "mutant stylesheet"),
+  /reserves DM Serif Display for the Flow suffix/,
+  "font shorthand cannot bypass the Flow-only typography contract"
+);
 assert.match(styles, /\.demo-overlay div\s*>\s*span\s*\{/, "guide overlay limits status-dot styling to the direct child");
 
 for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, "overlay renderer"]]) {

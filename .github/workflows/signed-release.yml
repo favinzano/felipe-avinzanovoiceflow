@@ -57,7 +57,7 @@ jobs:
 
       - name: Verify Authenticode independently
         shell: pwsh
-        run: npm run release:verify-signature
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-signature.ps1 -ReleaseFlavor "${{ matrix.flavor }}"
 
       - uses: actions/upload-artifact@v4
         with:

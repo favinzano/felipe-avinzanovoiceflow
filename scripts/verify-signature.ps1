@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
-  [ValidateSet("", "Legacy", "AVX2")]
-  [string]$ReleaseFlavor = $(if ($env:RELEASE_FLAVOR) { $env:RELEASE_FLAVOR } else { "" }),
+  [ValidateSet("Legacy", "AVX2")]
+  [string]$ReleaseFlavor = $env:RELEASE_FLAVOR,
   [switch]$ResolveOnly
 )
 
 $ErrorActionPreference = "Stop"
+if ($ReleaseFlavor -and $ReleaseFlavor -notin @("Legacy", "AVX2")) {
+  throw "ReleaseFlavor no compatible: $ReleaseFlavor"
+}
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $brand = Get-Content -LiteralPath (Join-Path $projectRoot "src\brand-config.json") -Raw | ConvertFrom-Json
 $package = Get-Content -LiteralPath (Join-Path $projectRoot "package.json") -Raw | ConvertFrom-Json

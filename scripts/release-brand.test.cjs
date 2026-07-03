@@ -84,6 +84,13 @@ assert.match(workflow, new RegExp(brand.slug, 'i'));
 assert.match(workflow, new RegExp(brand.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(workflow, new RegExp(brand.repository.slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
+const signedWorkflow = fs.readFileSync(path.join(root, '.github/workflows/signed-release.yml'), 'utf8');
+assert.match(
+  signedWorkflow,
+  /powershell\s+-NoProfile\s+-ExecutionPolicy\s+Bypass\s+-File\s+scripts\/verify-signature\.ps1\s+-ReleaseFlavor\s+["']?\$\{\{\s*matrix\.flavor\s*\}\}["']?/,
+  'signed workflow passes every matrix flavor explicitly to independent signature verification',
+);
+
 const historicalRelease = fs.readFileSync(path.join(__dirname, 'release-1.1.0.ps1'), 'utf8');
 assert.doesNotMatch(historicalRelease, /git\s+reset\s+--hard/i);
 assert.doesNotMatch(historicalRelease, /^\s*#\s*\$WorkingTree/m);
@@ -111,12 +118,25 @@ const signaturePaths = JSON.parse(signatureProbe.stdout);
 assert.equal(path.basename(signaturePaths.installer), brand.installerName(packageJson.version, 'AVX2'));
 assert.equal(path.basename(signaturePaths.application), `${brand.displayName}.exe`);
 assert.equal(path.basename(signaturePaths.helper), brand.helperExecutable);
+const legacySignatureProbe = spawnSync('powershell', [
+  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+  '-ResolveOnly', '-ReleaseFlavor', 'Legacy',
+], { cwd: root, encoding: 'utf8' });
+assert.equal(legacySignatureProbe.status, 0, legacySignatureProbe.stderr);
+assert.equal(path.basename(JSON.parse(legacySignatureProbe.stdout).installer), brand.installerName(packageJson.version, 'Legacy'));
 const invalidSignatureProbe = spawnSync('powershell', [
   '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
   '-ResolveOnly', '-ReleaseFlavor', 'SSE2',
 ], { cwd: root, encoding: 'utf8' });
 assert.notEqual(invalidSignatureProbe.status, 0);
-assert.doesNotMatch(fs.readFileSync(path.join(__dirname, 'verify-signature.ps1'), 'utf8'), /Get-ChildItem/);
+const invalidEnvironmentSignatureProbe = spawnSync('powershell', [
+  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+  '-ResolveOnly',
+], { cwd: root, encoding: 'utf8', env: { ...process.env, RELEASE_FLAVOR: 'SSE2' } });
+assert.notEqual(invalidEnvironmentSignatureProbe.status, 0, 'invalid RELEASE_FLAVOR environment fallback must fail');
+const signatureSource = fs.readFileSync(path.join(__dirname, 'verify-signature.ps1'), 'utf8');
+assert.match(signatureSource, /\[ValidateSet\(\s*["']Legacy["']\s*,\s*["']AVX2["']\s*\)\]/, 'signature verifier accepts only signed release flavors when one is passed');
+assert.doesNotMatch(signatureSource, /Get-ChildItem/);
 
 require('./generate-release-notes.test.cjs');
 require('../src/self-test-paths.test.cjs');
