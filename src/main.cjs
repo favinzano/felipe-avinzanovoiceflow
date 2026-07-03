@@ -793,7 +793,7 @@ async function runAudioWorkletSelfTest() {
         const context = new AudioContext({ sampleRate: 16000 });
         try {
           await context.audioWorklet.addModule("src/pcm-capture-worklet.js");
-          const node = new AudioWorkletNode(context, "nextstepai-pcm-capture");
+          const node = new AudioWorkletNode(context, "voiceflow-pcm-capture");
           node.disconnect();
           return { sampleRate: context.sampleRate, state: context.state };
         } finally {

@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const MODEL_FILE_PATTERN = /\.onnx(?:_data(?:_\d+)?)?$/i;
 
-async function createIsolatedModelCache(prefix = "nextstepai-model-smoke-") {
+async function createIsolatedModelCache(prefix = "voiceflow-model-smoke-") {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 

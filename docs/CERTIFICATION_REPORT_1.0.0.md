@@ -1,5 +1,7 @@
 # Reporte De Certificación 1.0.0
 
+> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
+
 Fecha: 6 de junio de 2026  
 Entorno validado: Windows 10 x64 `10.0.19045`
 

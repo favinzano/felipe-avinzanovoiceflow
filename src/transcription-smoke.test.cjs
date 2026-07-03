@@ -21,7 +21,7 @@ function delay(ms) {
 }
 
 async function attemptSmokeTest() {
-  const cacheDir = await createIsolatedModelCache("nextstepai-transcription-smoke-");
+  const cacheDir = await createIsolatedModelCache("voiceflow-transcription-smoke-");
   const { pipeline, env } = await import("@huggingface/transformers");
   env.cacheDir = cacheDir;
   env.allowLocalModels = true;

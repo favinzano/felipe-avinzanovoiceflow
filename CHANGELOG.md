@@ -4,7 +4,9 @@
 - **Optimized (DevOps Overhaul):** Matrix compilation build pipeline splits inside GitHub Actions for `Legacy` vs `AVX2` binaries. Integrated pre-release native DLL extraction compression routines using UPX binary stripping tools.
 # Changelog
 
-Todos los cambios relevantes de NextStepAI Voice se documentan en este archivo.
+> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
+
+Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
 ## [1.1.1] - 2026-06-14
 

@@ -1,6 +1,6 @@
 # Firma Authenticode Para Windows
 
-NextStepAI Voice usa firma Authenticode con un certificado de firma de codigo `.pfx`, SHA-256 y timestamp RFC 3161.
+felipe avinzano VoiceFlow usa firma Authenticode con un certificado de firma de codigo `.pfx`, SHA-256 y timestamp RFC 3161.
 
 ## Configuracion Del Certificado
 
@@ -25,8 +25,8 @@ Para GitHub Actions:
 Configura los secretos sin imprimir su contenido:
 
 ```powershell
-gh secret set SIGNING_PFX_BASE64 --repo favinzano/nextstepai-voice
-gh secret set SIGNING_PFX_PASSWORD --repo favinzano/nextstepai-voice
+gh secret set SIGNING_PFX_BASE64 --repo favinzano/felipe-avinzanovoiceflow
+gh secret set SIGNING_PFX_PASSWORD --repo favinzano/felipe-avinzanovoiceflow
 ```
 
 El workflow `Signed Windows Release` valida que ambos secretos existan antes de

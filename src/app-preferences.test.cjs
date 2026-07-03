@@ -15,7 +15,7 @@ const {
   setShortcuts
 } = require("./app-preferences.cjs");
 
-const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nextstepai-preferences-"));
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), "voiceflow-preferences-"));
 
 assert.equal(getCloseBehavior(directory), "tray");
 assert.equal(setCloseBehavior(directory, "tray"), "tray");

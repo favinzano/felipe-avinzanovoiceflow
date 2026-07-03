@@ -61,9 +61,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nextstepai-voice-${{ matrix.flavor }}-windows-x64-signed
+          name: felipe-avinzanovoiceflow-${{ matrix.flavor }}-windows-x64-signed
           if-no-files-found: error
           path: |
-            release/NextStepAI-Voice-Setup-*-${{ matrix.flavor }}-x64.exe
-            release/NextStepAI-Voice-Setup-*-${{ matrix.flavor }}-x64.exe.blockmap
+            release/felipe-avinzanovoiceflow-Setup-*-${{ matrix.flavor }}-x64.exe
+            release/felipe-avinzanovoiceflow-Setup-*-${{ matrix.flavor }}-x64.exe.blockmap
             release/latest.yml

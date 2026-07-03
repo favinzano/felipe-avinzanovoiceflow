@@ -1,12 +1,12 @@
-# NextStepAI Voice
+# felipe avinzano VoiceFlow
 
 Aplicacion de escritorio para convertir voz en texto con Whisper ejecutado localmente.
 
 ## Instalación En Windows
 
-Para usuarios finales, utiliza el instalador versionado `NextStepAI-Voice-Setup-1.0.0-x64.exe`.
+Para usuarios finales, utiliza el instalador versionado `felipe-avinzanovoiceflow-Setup-1.1.1-x64.exe`.
 
-El archivo `Iniciar NextStepAI Voice.bat` se mantiene únicamente para desarrollo local.
+El archivo `Iniciar felipe avinzano VoiceFlow.bat` se mantiene únicamente para desarrollo local.
 
 ## Funciones
 
@@ -42,4 +42,4 @@ La versión `1.0.0` se prepara como primer release para Windows x64. Consulta `P
 
 ## Soporte
 
-Reporta incidencias en `https://github.com/favinzano/nextstepai-voice/issues`. Los diagnósticos copiados desde la aplicación no incluyen transcripciones.
+Reporta incidencias en `https://github.com/favinzano/felipe-avinzanovoiceflow/issues`. Los diagnósticos copiados desde la aplicación no incluyen transcripciones.

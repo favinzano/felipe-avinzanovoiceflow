@@ -283,7 +283,7 @@ async function beginRecording(source = "button") {
     audioContext = new AudioContext({ sampleRate: 16000, latencyHint: "interactive" });
     await audioContext.audioWorklet.addModule("src/pcm-capture-worklet.js");
     audioSource = audioContext.createMediaStreamSource(mediaStream);
-    captureNode = new AudioWorkletNode(audioContext, "nextstepai-pcm-capture");
+    captureNode = new AudioWorkletNode(audioContext, "voiceflow-pcm-capture");
     silentGain = audioContext.createGain();
     silentGain.gain.value = 0;
     captureNode.port.onmessage = (event) => {

@@ -12,13 +12,13 @@ const {
 } = require("./local-state.cjs");
 
 async function run() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nextstepai-state-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "voiceflow-state-"));
   assert.equal((await readState(root)).schemaVersion, STATE_SCHEMA_VERSION);
 
   const initial = await migrateLegacyState(root, {
     settings: { language: "spanish" },
     history: [{ text: "hola" }],
-    dictionary: ["NextStepAI"],
+    dictionary: ["VoiceFlow"],
     microphone: "mic-1"
   });
   assert.equal(initial.history.length, 1);

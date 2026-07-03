@@ -24,16 +24,16 @@ const cleanupCases = [
 ];
 
 const addressCases = [
-  ["escribe a soporte arroba nextstepai punto com", "Escribe a soporte@nextstepai.com."],
+  ["escribe a soporte arroba felipeavinzano punto com", "Escribe a soporte@felipeavinzano.com."],
   ["mi correo es felipe punto avinzano arroba gmail punto com", "Mi correo es felipe.avinzano@gmail.com."],
-  ["contacta ventas guion latam arroba nextstep punto ai", "Contacta ventas-latam@nextstep.ai."],
-  ["escribe a soporte arroba next step ai punto com", "Escribe a soporte@nextstepai.com."],
-  ["visita nextstepai punto com", "Visita nextstepai.com."],
-  ["visita next step ai punto com", "Visita nextstepai.com."],
-  ["visita www punto nextstepai punto com", "Visita www.nextstepai.com."],
-  ["abre nextstepai punto com slash contacto", "Abre nextstepai.com/contacto."],
-  ["soporte@nextstepai.com", "soporte@nextstepai.com"],
-  ["https://nextstepai.com/contacto", "https://nextstepai.com/contacto"]
+  ["contacta ventas guion latam arroba felipeavinzano punto com", "Contacta ventas-latam@felipeavinzano.com."],
+  ["escribe a soporte arroba felipe avinzano punto com", "Escribe a soporte@felipeavinzano.com."],
+  ["visita felipeavinzano punto com", "Visita felipeavinzano.com."],
+  ["visita felipe avinzano punto com", "Visita felipeavinzano.com."],
+  ["visita www punto felipeavinzano punto com", "Visita www.felipeavinzano.com."],
+  ["abre felipeavinzano punto com slash contacto", "Abre felipeavinzano.com/contacto."],
+  ["soporte@felipeavinzano.com", "soporte@felipeavinzano.com"],
+  ["https://felipeavinzano.com/contacto", "https://felipeavinzano.com/contacto"]
 ];
 
 const structureInput = [
@@ -56,8 +56,8 @@ for (const [input, expected] of [...cleanupCases, ...addressCases]) {
 
 assert.equal(cleanTranscription(structureInput), structureExpected, "estructura discursiva");
 assert.equal(
-  cleanTranscription("hablamos de nextstepai", { dictionary: ["NextStepAI"] }),
-  "Hablamos de NextStepAI."
+  cleanTranscription("hablamos de voiceflow", { dictionary: ["VoiceFlow"] }),
+  "Hablamos de VoiceFlow."
 );
 assert.equal(cleanTranscription("eh bueno hola", { cleanup: false }), "Eh bueno hola.");
 assert.equal(cleanTranscription("hola", { appendSpace: true }), "Hola. ");

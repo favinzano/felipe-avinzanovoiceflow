@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Convertir NextStepAI Voice en una herramienta de dictado para Windows
+Convertir felipe avinzano VoiceFlow en una herramienta de dictado para Windows
 extremadamente fiable, rápida y verificable, sin ampliar innecesariamente su
 alcance.
 

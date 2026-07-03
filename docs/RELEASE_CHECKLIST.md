@@ -63,7 +63,7 @@ Ocultar la ventana en la bandeja conserva el proceso y normalmente mantiene el m
 - [ ] Tras una transcripción correcta, anotar el tamaño y fecha de modificación de `userData\models`.
 - [ ] Ocultar la aplicación en la bandeja, esperar cinco minutos y volver a dictar con el mismo perfil.
 - [ ] La segunda transcripción inicia sin progreso de descarga y su latencia es comparable con una transcripción en caliente.
-- [ ] Salir completamente de NextStepAI Voice y deshabilitar red, Wi-Fi y adaptadores virtuales.
+- [ ] Salir completamente de felipe avinzano VoiceFlow y deshabilitar red, Wi-Fi y adaptadores virtuales.
 - [ ] Iniciar nuevamente la aplicación y transcribir con cada perfil previamente descargado.
 - [ ] Base y Large v3 Turbo cargan desde `userData\models` y transcriben correctamente sin acceso a Hugging Face.
 - [ ] No cambian el tamaño ni la fecha de los archivos ONNX durante la prueba offline.
@@ -73,9 +73,9 @@ Ocultar la ventana en la bandeja conserva el proceso y normalmente mantiene el m
 
 ### Alternancia De Perfiles Y Memoria
 
-Validar con Administrador de tareas, Monitor de recursos o Performance Monitor. Medir `Working Set`, `Private Bytes` y memoria disponible del sistema para `NextStepAI Voice.exe`.
+Validar con Administrador de tareas, Monitor de recursos o Performance Monitor. Medir `Working Set`, `Private Bytes` y memoria disponible del sistema para `felipe avinzano VoiceFlow.exe`.
 
-- [ ] Cerrar otras aplicaciones intensivas y registrar la memoria base de NextStepAI Voice antes de cargar un modelo.
+- [ ] Cerrar otras aplicaciones intensivas y registrar la memoria base de felipe avinzano VoiceFlow antes de cargar un modelo.
 - [ ] Cargar Base, completar una transcripción y registrar memoria estable después de 60 segundos.
 - [ ] Cambiar a Large v3 Turbo y transcribir; confirmar que Base se libera antes de terminar la carga.
 - [ ] Esperar 60 segundos y registrar memoria estable de Large v3 Turbo.
@@ -93,7 +93,7 @@ Validar con Administrador de tareas, Monitor de recursos o Performance Monitor. 
 - [ ] Adjuntar captura o exportación de Performance Monitor de la prueba de alternancia.
 - [ ] Adjuntar registro de actividad de red de la prueba offline.
 - [ ] `npm run build:native` genera el helper Windows x64 autocontenido.
-- [ ] El paquete contiene y firma `NextStepAI.PasteHelper.exe`.
+- [ ] El paquete contiene y firma `FelipeAvinzano.VoiceFlow.PasteHelper.exe`.
 - [ ] El VAD respeta pausas menores al periodo de gracia y finaliza después de silencios mayores.
 - [ ] `voice-state.json` se recupera correctamente desde su backup.
 - [ ] `npm run release:verify-acceptance` aprueba los doce casos humanos.

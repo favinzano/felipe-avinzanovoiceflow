@@ -1,5 +1,7 @@
 # NextStepAI Voice 1.0.0
 
+> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
+
 NextStepAI Voice 1.0.0 es el primer lanzamiento para Windows x64 de nuestro
 asistente de dictado privado basado en Whisper. La aplicación transforma voz en
 texto localmente, se mantiene disponible desde la bandeja del sistema y permite

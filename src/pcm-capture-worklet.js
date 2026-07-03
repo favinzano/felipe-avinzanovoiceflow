@@ -42,4 +42,4 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("nextstepai-pcm-capture", PcmCaptureProcessor);
+registerProcessor("voiceflow-pcm-capture", PcmCaptureProcessor);

@@ -10,7 +10,7 @@ const {
 } = require("./model-storage.cjs");
 
 async function run() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "nextstepai-model-test-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "voiceflow-model-test-"));
   const cacheDir = getModelCacheDir(root);
   assert.equal(cacheDir, path.join(root, "models"));
   assert.equal(await ensureModelCache(root, "fast"), cacheDir);

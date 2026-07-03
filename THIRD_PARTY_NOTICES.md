@@ -1,5 +1,7 @@
 # Avisos De Software De Terceros
 
+> Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
+
 Última actualización: 14 de junio de 2026
 Aplicable a: NextStepAI Voice `1.0.0` para Windows x64
 
@@ -138,7 +140,7 @@ pueden obtenerse y reconstruirse desde sus proyectos originales:
 Para solicitar una copia de los textos de licencia incluidos con NextStepAI
 Voice `1.0.0` o reportar una omisión, abre una incidencia en:
 
-<https://github.com/favinzano/nextstepai-voice/issues>
+<https://github.com/favinzano/felipe-avinzanovoiceflow/issues>
 
 ## Exclusión De Garantías
 

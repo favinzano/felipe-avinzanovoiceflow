@@ -4,7 +4,7 @@
 
 1. Incrementar la versión semántica en `package.json`.
 2. Ejecutar la suite de producción, firma y checklist manual.
-3. Crear un GitHub Release estable en `favinzano/nextstepai-voice`.
+3. Crear un GitHub Release estable en `favinzano/felipe-avinzanovoiceflow`.
 4. Adjuntar el instalador, su `.exe.blockmap` y `latest.yml`.
 5. Confirmar que una instalación anterior detecta, descarga e instala la nueva versión.
 

@@ -4,7 +4,7 @@
 
 ## Resumen
 
-NextStepAI Voice está diseñado para procesar voz y texto localmente en el equipo del usuario.
+felipe avinzano VoiceFlow está diseñado para procesar voz y texto localmente en el equipo del usuario.
 
 ## Datos Procesados
 
@@ -14,7 +14,7 @@ NextStepAI Voice está diseñado para procesar voz y texto localmente en el equi
 
 ## Datos Que No Recopilamos
 
-NextStepAI Voice no incluye telemetría, analítica, publicidad ni envío automático de transcripciones a servidores de NextStepAI.
+felipe avinzano VoiceFlow no incluye telemetría, analítica, publicidad ni envío automático de transcripciones a servidores del producto.
 
 ## Conexiones De Red
 
