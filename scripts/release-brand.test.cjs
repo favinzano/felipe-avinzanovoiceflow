@@ -2,14 +2,22 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const brand = require('../src/brand-config.cjs');
 const packageJson = require('../package.json');
 const { normalizeAsarPath, resolveReleasePaths } = require('./verify-release.cjs');
-const { isPathContained, resolveProfiles } = require('./verify-packaged-models.cjs');
 const { spawnSync } = require('node:child_process');
+
+const packagedSmokePrefix = `${brand.slug}-packaged-model-smoke-`;
+const listPackagedSmokeDirs = () => fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith(packagedSmokePrefix)).sort();
+const smokeDirsBeforeImport = listPackagedSmokeDirs();
+const { isPathContained, resolveProfiles } = require('./verify-packaged-models.cjs');
+assert.deepEqual(listPackagedSmokeDirs(), smokeDirsBeforeImport, 'importing packaged model helpers must not allocate temp storage');
+const lifecycleTest = spawnSync(process.execPath, [path.join(__dirname, 'verify-packaged-models-lifecycle.test.cjs')], { encoding: 'utf8' });
+assert.equal(lifecycleTest.status, 0, lifecycleTest.stderr);
 
 assert.equal(fs.readFileSync(path.join(root, 'package.json'), 'utf8')[0], '{', 'package.json must not contain a UTF-8 BOM');
 assert.equal(normalizeAsarPath('\\src\\brand-config.json'), 'src/brand-config.json');

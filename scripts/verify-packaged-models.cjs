@@ -9,7 +9,6 @@ const brand = require('../src/brand-config.cjs');
 
 const root = path.join(__dirname, "..");
 const executable = path.join(root, 'release', 'win-unpacked', `${brand.displayName}.exe`);
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), `${brand.slug}-packaged-model-smoke-`));
 
 function isPathContained(rootPath, candidatePath) {
   const relative = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
@@ -25,10 +24,19 @@ function resolveProfiles(argv) {
   return profiles;
 }
 
+async function withPackagedSmokeTemp(callback) {
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), `${brand.slug}-packaged-model-smoke-`));
+  try {
+    return await callback(userData);
+  } finally {
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+}
+
 async function run() {
   assert.ok(fs.existsSync(executable), "Construye el release antes de probar los modelos empaquetados.");
 
-  try {
+  return withPackagedSmokeTemp(async (userData) => {
     for (const profileId of resolveProfiles(process.argv.slice(2))) {
       const reportPath = path.join(userData, `${profileId}-self-test-report.json`);
       const result = spawnSync(executable, [
@@ -55,12 +63,10 @@ async function run() {
     }
 
     console.log("Packaged model cache isolation verified.");
-  } finally {
-    fs.rmSync(userData, { recursive: true, force: true });
-  }
+  });
 }
 
-module.exports = { isPathContained, resolveProfiles };
+module.exports = { isPathContained, resolveProfiles, withPackagedSmokeTemp };
 
 if (require.main === module) {
   run().catch((error) => {
