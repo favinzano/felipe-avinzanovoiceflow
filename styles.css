@@ -58,7 +58,6 @@ h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 0; font: 480 clamp(28px,4vw,42px)/.98 Geist; letter-spacing: -.045em; }
 .hero-emphasis {
   color: #b87333;
-  font-family: "DM Serif Display", serif;
   font-size: 1.08em;
   font-weight: 400;
   letter-spacing: -.045em;

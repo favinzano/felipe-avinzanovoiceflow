@@ -65,6 +65,10 @@ function assertBrandCss(css, surface) {
   assert.match(css, /@font-face\s*\{[^}]*font-family:\s*["']?DM Serif Display["']?[^}]*font-weight:\s*400[^}]*\}/, `${surface} loads DM Serif Display at its native weight`);
   assert.match(css, /--copper:\s*#b66d45/i, `${surface} defines the approved copper token`);
   assert.match(css, /\.brand-flow\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif[^}]*font-weight:\s*400[^}]*color:\s*var\(--copper\)[^}]*\}/, `${surface} styles only the Flow suffix in copper DM Serif`);
+  const dmSerifRules = [...css.matchAll(/([^{}]+)\{([^{}]*font-family:\s*["']?DM Serif Display["']?[^{}]*)\}/g)]
+    .map((match) => match[1].trim());
+  assert.equal(dmSerifRules.filter((selector) => selector === '.brand-flow').length, 1, `${surface} styles one Flow suffix with DM Serif Display`);
+  assert.ok(dmSerifRules.every((selector) => selector === '@font-face' || selector === '.brand-flow'), `${surface} reserves DM Serif Display for the Flow suffix`);
 }
 
 assertVisualWordmark(indexHtml, "wordmark", "titlebar wordmark");
