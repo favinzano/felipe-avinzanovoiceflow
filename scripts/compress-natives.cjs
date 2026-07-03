@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const brand = require('../src/brand-config.cjs');
+
 const UPX_FLAGS = '--best';
 
 function warn(message) {
@@ -39,7 +41,7 @@ function runUpx(command, cwd) {
 }
 
 if (process.platform !== 'win32') {
-  warn('Se omite UPX porque este paso solo procesa DLL de Windows x64.');
+  warn('Se omite UPX porque este paso solo procesa binarios de Windows x64.');
   process.exit(0);
 }
 
@@ -51,45 +53,53 @@ try {
 }
 
 const dllDirectory = resolveOnnxRuntimeDllDirectory();
-if (!fs.existsSync(dllDirectory)) {
+let nativePaths = [];
+if (fs.existsSync(dllDirectory)) {
+  nativePaths = fs
+    .readdirSync(dllDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /^[A-Za-z0-9_.-]+\.dll$/i.test(entry.name))
+    .map((entry) => path.join(dllDirectory, entry.name));
+} else {
   warn(`No se encontro el directorio de DLL de onnxruntime-node: ${dllDirectory}`);
+}
+
+const helperPath = path.resolve(__dirname, '..', 'native', 'win32-x64', brand.helperExecutable);
+if (fs.existsSync(helperPath)) {
+  nativePaths.push(helperPath);
+} else {
+  warn(`No se encontro el helper nativo: ${helperPath}`);
+}
+
+if (nativePaths.length === 0) {
+  warn('No se encontraron binarios nativos para comprimir.');
   process.exit(0);
 }
 
-const dllNames = fs
-  .readdirSync(dllDirectory, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && /^[A-Za-z0-9_.-]+\.dll$/i.test(entry.name))
-  .map((entry) => entry.name);
-
-if (dllNames.length === 0) {
-  warn(`No se encontraron DLL para comprimir en: ${dllDirectory}`);
-  process.exit(0);
-}
-
-const backupDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'nextstepai-upx-'));
+const backupDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'voiceflow-upx-'));
 
 try {
-  for (const dllName of dllNames) {
-    const dllPath = path.join(dllDirectory, dllName);
-    const backupPath = path.join(backupDirectory, dllName);
-    const originalBytes = fs.statSync(dllPath).size;
+  for (const nativePath of nativePaths) {
+    const nativeDirectory = path.dirname(nativePath);
+    const nativeName = path.basename(nativePath);
+    const backupPath = path.join(backupDirectory, nativeName);
+    const originalBytes = fs.statSync(nativePath).size;
 
-    fs.copyFileSync(dllPath, backupPath);
+    fs.copyFileSync(nativePath, backupPath);
 
     try {
-      // dllName is restricted above to prevent shell metacharacters in execSync.
-      runUpx(`${UPX_FLAGS} -- "${dllName}"`, dllDirectory);
-      runUpx(`-t -- "${dllName}"`, dllDirectory);
+      // Native names come from a restricted DLL pattern or the canonical brand config.
+      runUpx(`${UPX_FLAGS} -- "${nativeName}"`, nativeDirectory);
+      runUpx(`-t -- "${nativeName}"`, nativeDirectory);
 
-      const compressedBytes = fs.statSync(dllPath).size;
+      const compressedBytes = fs.statSync(nativePath).size;
       const savedPercent = ((1 - compressedBytes / originalBytes) * 100).toFixed(1);
       console.log(
-        `[compress-natives] ${dllName}: ${originalBytes} -> ${compressedBytes} bytes (${savedPercent}% menos)`,
+        `[compress-natives] ${nativeName}: ${originalBytes} -> ${compressedBytes} bytes (${savedPercent}% menos)`,
       );
     } catch (error) {
-      fs.copyFileSync(backupPath, dllPath);
+      fs.copyFileSync(backupPath, nativePath);
       const detail = error.stderr?.trim() || error.message;
-      warn(`UPX no pudo comprimir/verificar ${dllName}; se restauro el original. ${detail}`);
+      warn(`UPX no pudo comprimir/verificar ${nativeName}; se restauro el original. ${detail}`);
     }
   }
 } finally {

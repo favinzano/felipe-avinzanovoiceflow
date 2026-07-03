@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title NextStepAI Voice
+title felipe avinzano VoiceFlow
 
 where npm >nul 2>nul
 if errorlevel 1 (
@@ -15,7 +15,7 @@ if errorlevel 1 (
 
 if not exist "node_modules\electron\package.json" (
   echo.
-  echo Preparando NextStepAI Voice por primera vez...
+  echo Preparando felipe avinzano VoiceFlow por primera vez...
   call npm install
   if errorlevel 1 goto :error
 )
@@ -25,13 +25,13 @@ echo Compilando la aplicacion...
 call npm run build
 if errorlevel 1 goto :error
 
-echo Abriendo NextStepAI Voice...
+echo Abriendo felipe avinzano VoiceFlow...
 call npm start
 exit /b 0
 
 :error
 echo.
-echo No se pudo iniciar NextStepAI Voice.
+echo No se pudo iniciar felipe avinzano VoiceFlow.
 echo Revisa el mensaje anterior y vuelve a intentarlo.
 echo.
 pause

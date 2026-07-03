@@ -13,6 +13,12 @@ const indexHtml = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf
 const overlayHtml = fs.readFileSync(path.join(__dirname, "..", "overlay.html"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
 const overlayStyles = fs.readFileSync(path.join(__dirname, "..", "overlay.css"), "utf8");
+const projectRoot = path.join(__dirname, "..");
+const helperProjectDirectory = path.join(projectRoot, "tools", "FelipeAvinzano.VoiceFlow.PasteHelper");
+const helperProjectPath = path.join(helperProjectDirectory, "FelipeAvinzano.VoiceFlow.PasteHelper.csproj");
+const legacyHelperProjectDirectory = path.join(projectRoot, "tools", "NextStepAI.PasteHelper");
+const launcherPath = path.join(projectRoot, "Iniciar felipe avinzano VoiceFlow.bat");
+const legacyLauncherPath = path.join(projectRoot, "Iniciar NextStepAI Voice.bat");
 
 function assertRendererBrand(source, surface) {
   assert.match(source, /require\(["']\.\/brand-config\.cjs["']\)/, `${surface} imports the canonical brand`);
@@ -129,4 +135,28 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
 }
 
 assert.equal(brand.displayName, "felipe avinzano VoiceFlow");
+
+assert.ok(fs.existsSync(helperProjectPath), "the approved native helper project exists");
+assert.ok(fs.existsSync(path.join(helperProjectDirectory, "Program.cs")), "the approved native helper source exists");
+assert.ok(!fs.existsSync(legacyHelperProjectDirectory), "the legacy native helper project path is absent");
+const helperProject = fs.readFileSync(helperProjectPath, "utf8");
+assert.match(helperProject, /<AssemblyName>FelipeAvinzano\.VoiceFlow\.PasteHelper<\/AssemblyName>/, "the native helper assembly uses the approved identity");
+
+assert.ok(fs.existsSync(launcherPath), "the approved local launcher exists");
+assert.ok(!fs.existsSync(legacyLauncherPath), "the legacy local launcher path is absent");
+const launcher = fs.readFileSync(launcherPath, "utf8");
+assert.match(launcher, /title felipe avinzano VoiceFlow/, "the launcher title uses the approved display name");
+assert.doesNotMatch(launcher, /NextStepAI Voice/, "the launcher messages do not use the legacy display name");
+
+const buildNative = fs.readFileSync(path.join(projectRoot, "scripts", "build-native.ps1"), "utf8");
+const compressNatives = fs.readFileSync(path.join(projectRoot, "scripts", "compress-natives.cjs"), "utf8");
+for (const [source, surface] of [[buildNative, "native build script"], [compressNatives, "native compression script"]]) {
+  assert.match(source, /FelipeAvinzano\.VoiceFlow\.PasteHelper\.exe|brand\.helperExecutable/, `${surface} selects the approved helper executable`);
+  assert.doesNotMatch(source, /NextStepAI\.PasteHelper/, `${surface} has no active legacy helper reference`);
+}
+assert.match(buildNative, /tools\\FelipeAvinzano\.VoiceFlow\.PasteHelper\\FelipeAvinzano\.VoiceFlow\.PasteHelper\.csproj/, "native build script selects the approved project");
+
+const gitignore = fs.readFileSync(path.join(projectRoot, ".gitignore"), "utf8");
+assert.match(gitignore, /^tools\/\*\*\/bin\/$/m, "native project bin output is ignored");
+assert.match(gitignore, /^tools\/\*\*\/obj\/$/m, "native project obj output is ignored");
 console.log("brand surface tests passed");

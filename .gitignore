@@ -5,6 +5,8 @@ dist/
 release/
 out/
 native/
+tools/**/bin/
+tools/**/obj/
 .worktrees/
 .superpowers/
 benchmarks/results/

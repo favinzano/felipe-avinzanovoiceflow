@@ -9,6 +9,6 @@
     <DebugSymbols>false</DebugSymbols>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>NextStepAI.PasteHelper</AssemblyName>
+    <AssemblyName>FelipeAvinzano.VoiceFlow.PasteHelper</AssemblyName>
   </PropertyGroup>
 </Project>
