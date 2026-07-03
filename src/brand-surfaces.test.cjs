@@ -34,7 +34,8 @@ assert.match(main, /app\.setName\(brand\.displayName\)/, "native app name uses b
 assert.match(main, /app\.setAppUserModelId\(brand\.appId\)/, "Windows identity uses brand.appId");
 assert.match(main, /shell\.openExternal\(brand\.issueUrl\)/, "support opens the canonical issue URL");
 assert.doesNotMatch(main, /com\.nextstepai\.voice/i, "legacy app ID is inactive");
-assert.match(main, /const migrationPromise\s*=\s*hasSingleInstanceLock\s*\?\s*migrateBrandData\(/, "the owning instance starts migration before readiness");
+assert.match(main, /const migrationPromise\s*=\s*selfTestPaths\s*\?\s*Promise\.resolve/, "isolated self-tests bypass migration before readiness");
+assert.match(main, /:\s*hasSingleInstanceLock\s*\?\s*migrateBrandData\(/, "the normal owning instance starts migration before readiness");
 assert.match(main, /app\.whenReady\(\)\.then\(async \(\) => \{\s*brandMigration\s*=\s*await migrationPromise;/, "migration is the first readiness bootstrap step");
 assert.match(main, /app\.whenReady\(\)[\s\S]*\}\)\.catch\(\(\) => \{[\s\S]*app\.exit\(1\)/, "unexpected bootstrap rejection is handled");
 assert.match(main, /app\.on\(["']second-instance["'],[\s\S]*if \(!bootstrapComplete\)[\s\S]*pendingShowMainWindow\s*=\s*true/, "a second instance cannot create a window before migration bootstrap");
@@ -43,7 +44,7 @@ assert.doesNotMatch(main, /app\.getPath\(["']userData["']\)/, "state consumers d
 assert.match(main, /const fsSync\s*=\s*require\(["']node:fs["']\)/, "hold-mode helper has a synchronous filesystem binding");
 assert.match(main, /fsSync\.existsSync\(helper\)/, "hold-mode helper existence check uses the bound filesystem");
 assert.match(main, /app\.setPath\(["']userData["'],\s*targetUserDataPath\)/, "single-instance identity always uses target userData");
-assert.match(main, /app\.setPath\(["']sessionData["'],\s*initialSessionDataPath\)/, "Chromium receives the selected pre-ready sessionData path");
+assert.match(main, /app\.setPath\(["']sessionData["'],\s*selfTestPaths\?\.sessionData\s*\|\|\s*initialSessionDataPath\)/, "Chromium receives isolated or normal pre-ready sessionData");
 assert.equal((main.match(/app\.setPath\(["'](?:userData|sessionData)["']/g) || []).length, 2, "Electron data paths are never rebound after startup");
 assert.ok(main.indexOf('app.setPath("userData", targetUserDataPath)') < main.indexOf("app.requestSingleInstanceLock()"), "stable userData identity is set before the singleton lock");
 assert.match(main, /tray\.setToolTip\(brand\.displayName\)/, "tray tooltip uses the display name");

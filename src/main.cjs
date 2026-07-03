@@ -7,6 +7,7 @@ const { execFile, spawn } = require("child_process");
 const brand = require("./brand-config.cjs");
 const { migrateBrandData } = require("./brand-migration.cjs");
 const { prepareBrandElectronPaths } = require("./brand-session-path.cjs");
+const { resolveSelfTestPaths } = require('./self-test-paths.cjs');
 const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
@@ -58,17 +59,18 @@ let brandMigration = { status: "pending" };
 let bootstrapComplete = false;
 let pendingShowMainWindow = false;
 const startHidden = process.argv.includes("--hidden");
-const allowTestInstance = process.argv.includes("--allow-test-instance");
+const selfTestPaths = resolveSelfTestPaths(process.argv);
+const allowTestInstance = process.argv.includes("--allow-test-instance") || Boolean(selfTestPaths);
 
 app.setName(brand.displayName);
 const appDataPath = app.getPath("appData");
 const targetUserDataName = app.isPackaged ? brand.displayName : brand.developmentName;
-const targetUserDataPath = path.join(appDataPath, targetUserDataName);
-const legacyUserDataNames = brand.legacyDataNames.filter((name) => {
+const targetUserDataPath = selfTestPaths?.userData || path.join(appDataPath, targetUserDataName);
+const legacyUserDataNames = selfTestPaths ? [] : brand.legacyDataNames.filter((name) => {
   return app.isPackaged ? !name.endsWith(" Development") : name.endsWith(" Development");
 });
 const legacyUserDataPaths = legacyUserDataNames.map((name) => path.join(appDataPath, name));
-const preparedBrandPaths = prepareBrandElectronPaths({
+const preparedBrandPaths = selfTestPaths || prepareBrandElectronPaths({
   targetPath: targetUserDataPath,
   legacyPaths: legacyUserDataPaths
 });
@@ -80,14 +82,16 @@ let activeUserDataPath = existingLegacyUserDataPath || targetUserDataPath;
 // sessionData intentionally reads legacy Local Storage/IndexedDB; the marker moves the
 // next launch to target without rebinding either Electron path after readiness.
 app.setPath("userData", targetUserDataPath);
-app.setPath("sessionData", initialSessionDataPath);
+app.setPath("sessionData", selfTestPaths?.sessionData || initialSessionDataPath);
 if (process.platform === "win32") app.setAppUserModelId(brand.appId);
 const hasSingleInstanceLock = allowTestInstance || app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 const migrationResultUsesTarget = (result) => {
   return ["migrated", "not-needed", "already-migrated"].includes(result.status);
 };
-const migrationPromise = hasSingleInstanceLock
+const migrationPromise = selfTestPaths
+  ? Promise.resolve({ status: "not-needed", targetPath: targetUserDataPath })
+  : hasSingleInstanceLock
   ? migrateBrandData({
       appDataPath,
       targetName: targetUserDataName,

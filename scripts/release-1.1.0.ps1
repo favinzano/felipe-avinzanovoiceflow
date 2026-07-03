@@ -44,6 +44,8 @@ $OriginalCommit = $null
 $CommitCreated = $false
 $TagCreated = $false
 $PushCompleted = $false
+$OriginalPackageText = $null
+$OriginalChangelogText = $null
 
 function Invoke-Git {
     param(
@@ -60,24 +62,22 @@ function Invoke-Git {
 }
 
 function Restore-LocalRepository {
-    if ($PushCompleted -or -not $OriginalCommit) {
+    if ($PushCompleted) {
         return
     }
 
-    Write-Warning "Release failed before completing the atomic push. Restoring local repository."
-
-    if ($TagCreated) {
-        & git tag --delete $TagName
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not remove local tag $TagName automatically."
-        }
+    if ($CommitCreated -or $TagCreated) {
+        Write-Warning "Release stopped after creating local Git history. No history was rewritten."
+        Write-Warning "Inspect commit HEAD and tag $TagName, then retry the atomic push or recover them manually."
+        return
     }
 
-    if ($CommitCreated) {
-        & git reset --hard $OriginalCommit
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not restore original commit $OriginalCommit automatically."
-        }
+    if ($null -ne $OriginalPackageText -and $null -ne $OriginalChangelogText) {
+        Write-Warning "Release failed before commit. Restoring package.json and CHANGELOG.md only."
+        [IO.File]::WriteAllText($PackagePath, $OriginalPackageText, [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($ChangelogPath, $OriginalChangelogText, [Text.UTF8Encoding]::new($false))
+        & git restore --staged -- package.json CHANGELOG.md 2>$null
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Could not unstage restored release files; run git restore --staged -- package.json CHANGELOG.md." }
     }
 }
 
@@ -101,13 +101,13 @@ try {
         throw "Release blocked: active branch '$Branch' is not 'main'."
     }
 
-# $WorkingTree = & git status --porcelain
-# if ($LASTEXITCODE -ne 0) {
-#     throw "Unable to inspect the Git working tree."
-# }
-# if ($WorkingTree) {
-#     throw "Release blocked: the Git working tree must be clean before running this script."
-# }
+    $WorkingTree = & git status --porcelain
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to inspect the Git working tree."
+    }
+    if ($WorkingTree) {
+        throw "Release blocked: the Git working tree must be clean before running this script."
+    }
 
 
     $OriginUrl = (& git remote get-url origin).Trim()
@@ -143,11 +143,14 @@ try {
     if (-not (Test-Path -LiteralPath $ChangelogPath -PathType Leaf)) {
         throw "Missing required file: CHANGELOG.md"
     }
+    $OriginalPackageText = [IO.File]::ReadAllText($PackagePath)
+    $OriginalChangelogText = [IO.File]::ReadAllText($ChangelogPath)
 
     # 1. Update package.json using structured JSON parsing
     $Package = Get-Content -LiteralPath $PackagePath -Raw | ConvertFrom-Json
     $Package.version = $Version
-    $Package | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $PackagePath -Encoding UTF8
+    $PackageJson = $Package | ConvertTo-Json -Depth 100
+    [IO.File]::WriteAllText($PackagePath, $PackageJson, [Text.UTF8Encoding]::new($false))
 
     # 2. Read the clean CHANGELOG framework
     $ExistingChangelog = Get-Content -LiteralPath $ChangelogPath -Raw
@@ -160,7 +163,7 @@ try {
     $FinalChangelogText = $NewChangelogContent.Trim()
 
     # 4. Save the clean markdown text to disk
-    Set-Content -LiteralPath $ChangelogPath -Value $FinalChangelogText -Encoding UTF8
+    [IO.File]::WriteAllText($ChangelogPath, $FinalChangelogText, [Text.UTF8Encoding]::new($false))
 
     Invoke-Git @("add", "--", "package.json", "CHANGELOG.md")
     Invoke-Git @("diff", "--cached", "--check")
