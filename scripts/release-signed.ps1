@@ -177,10 +177,8 @@ try {
       $env:CL = "/arch:AVX2"
       $env:CFLAGS = "/arch:AVX2"
       $env:CXXFLAGS = "/arch:AVX2"
-      $env:NEXTSTEPAI_CPU_FEATURES = "avx2"
     } else {
       Remove-Item Env:CL, Env:CFLAGS, Env:CXXFLAGS -ErrorAction SilentlyContinue
-      $env:NEXTSTEPAI_CPU_FEATURES = "legacy"
     }
 
     $version = (Get-Content -LiteralPath (Join-Path $projectRoot "package.json") -Raw | ConvertFrom-Json).version

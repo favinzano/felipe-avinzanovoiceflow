@@ -52,7 +52,7 @@ for (const name of powershellScripts) {
 
 const activeScripts = fs.readdirSync(__dirname)
   .filter((name) => /\.(?:cjs|ps1)$/.test(name) && name !== 'release-brand.test.cjs');
-const forbidden = /NextStepAI Voice|NextStepAI\.PasteHelper|nextstepai-voice|NextStepAI-Voice-Setup/i;
+const forbidden = /NEXTSTEPAI|NextStepAI Voice|NextStepAI\.PasteHelper|nextstepai-voice|NextStepAI-Voice-Setup/i;
 for (const name of activeScripts) {
   const source = fs.readFileSync(path.join(__dirname, name), 'utf8');
   assert.doesNotMatch(source, forbidden, `${name} contains an active legacy product identifier`);

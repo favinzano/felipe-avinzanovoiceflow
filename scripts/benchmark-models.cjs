@@ -4,12 +4,13 @@ const os = require("node:os");
 const { decodePcm16Wav, wordErrorRate } = require("../src/benchmark-utils.cjs");
 const { resampleAudio } = require("../src/audio-quality.cjs");
 const { WHISPER_PROFILES } = require("../src/whisper-profiles.cjs");
+const brand = require('../src/brand-config.cjs');
 
 async function run() {
   const manifestPath = path.resolve(process.argv[2] || "benchmarks/corpus/manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   if (!Array.isArray(manifest.cases) || !manifest.cases.length) throw new Error("The benchmark manifest has no cases.");
-  const cacheDir = path.join(os.tmpdir(), "nextstepai-benchmark-models");
+  const cacheDir = path.join(os.tmpdir(), `${brand.slug}-benchmark-models`);
   const { env, pipeline } = await import("@huggingface/transformers");
   env.cacheDir = cacheDir;
   env.allowLocalModels = true;
