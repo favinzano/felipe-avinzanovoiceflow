@@ -22,9 +22,11 @@ const voiceAPI = window.voiceAPI || {
   writeState: async (state) => state,
   transcribe: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
   overlay: async () => {},
+  overlayLevel: () => {},
   taskbar: async () => {},
   diagnostics: async () => ({ platform: "browser", version: "preview" }),
   clearModels: async () => true,
+  repairModels: async (profile, device) => ({ profile, device, cacheMb: 0, cacheRebuilt: false }),
   getCloseBehavior: async () => "ask",
   setCloseBehavior: async () => "ask",
   getAutoStart: async () => false,
@@ -112,6 +114,7 @@ let guideIndex = 0;
 let overlayHideTimer;
 let autoStopPending = false;
 let voiceActivityDetector;
+let availableMicrophones = [];
 let persistQueue = Promise.resolve();
 let holdShortcutPressed = false;
 
@@ -230,10 +233,16 @@ function setStatus(status, detail) {
 function createWaveform() {
   for (let index = 0; index < 32; index += 1) {
     const bar = document.createElement("i");
-    bar.style.setProperty("--delay", `${index * -0.045}s`);
-    bar.style.setProperty("--height", `${18 + Math.random() * 60}%`);
+    bar.style.setProperty("--delay", `${index * -0.026}s`);
     elements.waveform.appendChild(bar);
   }
+}
+
+function renderVoiceLevel(rms = 0) {
+  const level = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, rms) / 0.08)));
+  elements.waveform.style.setProperty("--voice-floor", String(0.1 + level * 0.3));
+  elements.waveform.style.setProperty("--voice-peak", String(0.36 + level * 0.6));
+  return level;
 }
 
 async function releaseAudioCapture() {
@@ -248,11 +257,13 @@ async function releaseAudioCapture() {
   captureNode = undefined;
   silentGain = undefined;
   voiceActivityDetector = undefined;
+  renderVoiceLevel(0);
 }
 
 async function updateMicrophones() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   const microphones = devices.filter((device) => device.kind === "audioinput");
+  availableMicrophones = microphones;
   const selected = persistedMicrophone;
   elements.microphone.innerHTML = '<option value="">Micrófono predeterminado</option>';
   microphones.forEach((microphone, index) => {
@@ -324,7 +335,9 @@ async function beginRecording(source = "button") {
 }
 
 function handleVoiceLevel(rms) {
-  if (!recording || !settings.autoStopEnabled || autoStopPending) return;
+  if (!recording) return;
+  voiceAPI.overlayLevel(renderVoiceLevel(rms));
+  if (!settings.autoStopEnabled || autoStopPending) return;
   if (!voiceActivityDetector?.update(rms)) return;
   autoStopPending = true;
   showToast("Silencio detectado. Procesando grabación.");
@@ -632,6 +645,8 @@ elements.diagnosticsButton.addEventListener("click", async () => {
     `Inference device: ${diagnostics.inferenceDevice}`,
     `Requested inference device: ${diagnostics.requestedInferenceDevice}`,
     `Last device fallback: ${diagnostics.lastDeviceFallback || "none"}`,
+    `Last model load attempts: ${diagnostics.lastModelLoadAttempts || 0}`,
+    `Last model error: ${JSON.stringify(diagnostics.lastModelError || null)}`,
     `Model cache: ${diagnostics.modelCacheMb} MB`,
     `Memory RSS: ${diagnostics.memoryRssMb} MB`,
     `Heap used: ${diagnostics.heapUsedMb} MB`,
@@ -641,7 +656,8 @@ elements.diagnosticsButton.addEventListener("click", async () => {
     `Last transcription metrics: ${JSON.stringify(diagnostics.lastTranscriptionMetrics || null)}`,
     `State schema: ${diagnostics.stateSchemaVersion}`,
     `State path: ${diagnostics.statePath}`,
-    `Microphone configured: ${Boolean(elements.microphone.value)}`,
+    `Microphone selection: ${elements.microphone.value || "default"}`,
+    `Microphones available: ${availableMicrophones.length}`,
     `Dictionary terms: ${dictionary.length}`,
     `History entries: ${history.length}`
   ].join("\n");
@@ -657,10 +673,13 @@ elements.repairModelsButton.addEventListener("click", async () => {
   elements.modelBadge.classList.remove("error");
   elements.modelBadge.innerHTML = "<span></span>Reparando modelos";
   try {
-    await voiceAPI.clearModels();
+    const profile = resolveWhisperProfile(settings.whisperProfile);
+    const repaired = await voiceAPI.repairModels(profile.id, settings.inferenceDevice);
     elements.modelBadge.classList.remove("loading", "error");
-    elements.modelBadge.innerHTML = "<span></span>Modelos listos para descargar";
-    showToast("Caché reparada. El modelo se descargará en la próxima transcripción.");
+    elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(repaired.device || "cpu").toUpperCase()}`;
+    showToast(repaired.cacheRebuilt
+      ? `Modelo reparado y validado (${repaired.cacheMb} MB).`
+      : `Modelo validado y listo (${repaired.cacheMb} MB).`);
   } catch (error) {
     elements.modelBadge.classList.remove("loading");
     elements.modelBadge.classList.add("error");

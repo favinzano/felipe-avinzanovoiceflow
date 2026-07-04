@@ -36,6 +36,29 @@ internal static class Program
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct Rectangle
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public int size;
+        public uint flags;
+        public IntPtr activeWindow;
+        public IntPtr focusedWindow;
+        public IntPtr captureWindow;
+        public IntPtr menuOwnerWindow;
+        public IntPtr moveSizeWindow;
+        public IntPtr caretWindow;
+        public Rectangle caretRectangle;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct LowLevelKeyboardInput
     {
         public uint virtualKey;
@@ -56,6 +79,21 @@ internal static class Program
     private struct InputUnion
     {
         [FieldOffset(0)] public KeyboardInput keyboard;
+        [FieldOffset(0)] public MouseInput mouse;
+    }
+
+    // INPUT's native union is sized by MOUSEINPUT (32 bytes on x64), even
+    // when SendInput receives keyboard events. Omitting this member shrinks
+    // INPUT to 32 bytes instead of the required 40 and SendInput returns 0.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int x;
+        public int y;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr extraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -74,6 +112,9 @@ internal static class Program
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint first, uint second, bool attach);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr window);
+    [DllImport("user32.dll")] private static extern IntPtr SetFocus(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
     [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, Input[] inputs, int size);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowsHookEx(int hook, KeyboardHook callback, IntPtr module, uint threadId);
@@ -88,8 +129,10 @@ internal static class Program
     private static int Capture()
     {
         var handle = GetForegroundWindow();
-        GetWindowThreadProcessId(handle, out var processId);
-        Write(new { ok = handle != IntPtr.Zero && processId > 0, handle = handle.ToInt64(), processId });
+        var threadId = GetWindowThreadProcessId(handle, out var processId);
+        var info = new GuiThreadInfo { size = Marshal.SizeOf<GuiThreadInfo>() };
+        var focusHandle = GetGUIThreadInfo(threadId, ref info) ? info.focusedWindow : IntPtr.Zero;
+        Write(new { ok = handle != IntPtr.Zero && processId > 0, handle = handle.ToInt64(), focusHandle = focusHandle.ToInt64(), processId });
         return handle != IntPtr.Zero && processId > 0 ? 0 : 2;
     }
 
@@ -120,18 +163,38 @@ internal static class Program
             return 3;
         }
 
+        var focusArgument = Array.IndexOf(args, "--focus");
+        var focusHandle = focusArgument >= 0
+            && focusArgument + 1 < args.Length
+            && long.TryParse(args[focusArgument + 1], out var focusValue)
+            ? new IntPtr(focusValue)
+            : IntPtr.Zero;
+        if (focusHandle != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(focusHandle, out var focusProcessId);
+            if (!IsWindow(focusHandle) || focusProcessId != expectedProcessId) focusHandle = IntPtr.Zero;
+        }
+
         ShowWindowAsync(handle, 9);
         var targetThread = GetWindowThreadProcessId(handle, out _);
+        var foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
         var currentThread = GetCurrentThreadId();
-        var attached = targetThread != currentThread && AttachThreadInput(currentThread, targetThread, true);
-        var focused = SetForegroundWindow(handle);
-        if (attached) AttachThreadInput(currentThread, targetThread, false);
-        if (!focused && GetForegroundWindow() != handle)
+        var attachedToForeground = foregroundThread != 0 && foregroundThread != currentThread
+            && AttachThreadInput(currentThread, foregroundThread, true);
+        var attachedToTarget = targetThread != currentThread && targetThread != foregroundThread
+            && AttachThreadInput(currentThread, targetThread, true);
+        BringWindowToTop(handle);
+        SetForegroundWindow(handle);
+        if (focusHandle != IntPtr.Zero) SetFocus(focusHandle);
+        Thread.Sleep(120);
+        var foregroundHandle = GetForegroundWindow();
+        if (foregroundHandle != handle)
         {
-            Write(new { ok = false, error = "focus_denied" });
+            if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
+            if (attachedToForeground) AttachThreadInput(currentThread, foregroundThread, false);
+            Write(new { ok = false, foregroundHandle = foregroundHandle.ToInt64(), error = "focus_denied" });
             return 4;
         }
-        Thread.Sleep(100);
         var inputs = new[]
         {
             Key(KeyControl, 0),
@@ -140,7 +203,10 @@ internal static class Program
             Key(KeyControl, KeyUp)
         };
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
-        Write(new { ok = sent == (uint)inputs.Length, sent, expected = inputs.Length, error = sent == (uint)inputs.Length ? null : "send_input_denied" });
+        var win32Error = sent == (uint)inputs.Length ? 0 : Marshal.GetLastWin32Error();
+        if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
+        if (attachedToForeground) AttachThreadInput(currentThread, foregroundThread, false);
+        Write(new { ok = sent == (uint)inputs.Length, sent, expected = inputs.Length, inputSize = Marshal.SizeOf<Input>(), win32Error, error = sent == (uint)inputs.Length ? null : "send_input_denied" });
         return sent == (uint)inputs.Length ? 0 : 5;
     }
 
@@ -224,6 +290,15 @@ internal static class Program
         union = new InputUnion { keyboard = new KeyboardInput { virtualKey = key, flags = flags } }
     };
 
+    private static int SelfTest()
+    {
+        var inputSize = Marshal.SizeOf<Input>();
+        var expectedInputSize = IntPtr.Size == 8 ? 40 : 28;
+        var ok = inputSize == expectedInputSize;
+        Write(new { ok, inputSize, expectedInputSize, pointerSize = IntPtr.Size });
+        return ok ? 0 : 6;
+    }
+
     public static int Main(string[] args)
     {
         try
@@ -232,6 +307,7 @@ internal static class Program
             {
                 "capture" => Capture(),
                 "paste" => Paste(args),
+                "self-test" => SelfTest(),
                 "monitor-shortcut" => Monitor(args),
                 _ => 2
             };

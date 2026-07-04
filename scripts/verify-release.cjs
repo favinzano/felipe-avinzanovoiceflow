@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 const asar = require('@electron/asar');
 const brand = require('../src/brand-config.cjs');
 
@@ -53,6 +54,11 @@ function verifyRelease({ root = path.join(__dirname, '..'), releaseFlavor = proc
   assert.ok(fs.existsSync(paths.appAsar), 'Falta app.asar.');
   assert.ok(fs.existsSync(paths.pasteHelper), `Falta el helper nativo: ${brand.helperExecutable}`);
   assert.ok(fs.statSync(paths.pasteHelper).size > 1024 * 1024, 'El helper nativo parece incompleto.');
+  const pasteHelperSelfTest = spawnSync(paths.pasteHelper, ['self-test'], { encoding: 'utf8', windowsHide: true });
+  assert.equal(pasteHelperSelfTest.status, 0, `El helper nativo falló su autoprueba: ${pasteHelperSelfTest.stderr || pasteHelperSelfTest.stdout}`);
+  const pasteHelperLayout = JSON.parse(pasteHelperSelfTest.stdout.trim());
+  assert.equal(pasteHelperLayout.ok, true, 'El helper nativo reportó una estructura INPUT inválida.');
+  assert.equal(pasteHelperLayout.inputSize, 40, 'El helper x64 no usa el tamaño Win32 INPUT requerido (40 bytes).');
   for (const file of ['DirectML.dll', 'onnxruntime.dll', 'onnxruntime_binding.node']) {
     assert.ok(fs.existsSync(path.join(onnxRuntimeX64Dir, file)), `Falta el binario ONNX Runtime x64 desempaquetado: ${file}`);
   }

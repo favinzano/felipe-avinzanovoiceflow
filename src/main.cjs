@@ -22,6 +22,7 @@ const {
   setShortcuts
 } = require("./app-preferences.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
+const { loadModelWithRetry } = require("./model-recovery.cjs");
 const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
 const {
   clearModelCache,
@@ -56,6 +57,8 @@ let taskbarIcons;
 let lastModelLoadMs;
 let lastTranscriptionMetrics;
 let lastDeviceFallback;
+let lastModelError;
+let lastModelLoadAttempts = 0;
 let brandMigration = { status: "pending" };
 let bootstrapComplete = false;
 let pendingShowMainWindow = false;
@@ -636,6 +639,44 @@ function friendlyModelError(error) {
   return "No fue posible preparar el modelo local. Usa “Reparar modelos” desde Soporte e inténtalo nuevamente.";
 }
 
+function serializeModelError(error, attempt) {
+  return {
+    at: new Date().toISOString(),
+    attempt,
+    name: String(error?.name || "Error"),
+    code: error?.code ? String(error.code) : undefined,
+    message: String(error?.message || error || "Unknown model error")
+  };
+}
+
+async function getTranscriberWithRetry(profileId, requestedDevice = "cpu", maxAttempts = 2) {
+  const result = await loadModelWithRetry(
+    () => getTranscriber(profileId, requestedDevice),
+    {
+      maxAttempts,
+      retryDelayMs: 300,
+      onFailure: (error, attempt) => {
+        lastModelError = serializeModelError(error, attempt);
+        console.error(`Whisper model load attempt ${attempt} failed:`, error);
+      }
+    }
+  );
+  lastModelLoadAttempts = result.attempts;
+  lastModelError = undefined;
+  return result.value;
+}
+
+async function resetTranscriber() {
+  if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
+  transcriber = undefined;
+  transcriberProfile = undefined;
+  transcriberDevice = undefined;
+  transcriberRequestedDevice = undefined;
+  transcriberPromise = undefined;
+  loadingProfile = undefined;
+  loadingDevice = undefined;
+}
+
 function rendererBrandArguments() {
   return [
     `--voiceflow-brand-display-name=${encodeURIComponent(brand.displayName)}`,
@@ -697,8 +738,8 @@ function positionOverlay() {
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 360,
-    height: 112,
+    width: 420,
+    height: 142,
     show: false,
     frame: false,
     transparent: true,
@@ -757,7 +798,7 @@ function runPasteHelper(args) {
 async function capturePasteTarget() {
   if (process.platform !== "win32") return;
   const result = await runPasteHelper(["capture"]);
-  pasteTarget = { handle: result.handle, processId: result.processId };
+  pasteTarget = { handle: result.handle, focusHandle: result.focusHandle, processId: result.processId };
 }
 
 async function pasteIntoActiveApp(text) {
@@ -769,7 +810,9 @@ async function pasteIntoActiveApp(text) {
   const target = pasteTarget;
   pasteTarget = undefined;
   try {
-    await runPasteHelper(["paste", "--handle", String(target.handle), "--process", String(target.processId)]);
+    const args = ["paste", "--handle", String(target.handle), "--process", String(target.processId)];
+    if (target.focusHandle) args.push("--focus", String(target.focusHandle));
+    await runPasteHelper(args);
     return true;
   } catch (error) {
     console.error("Native paste helper could not inject Ctrl+V:", error);
@@ -782,7 +825,7 @@ async function runPackagedModelSelfTest() {
   if (!argument) return false;
   const profileId = argument.split("=")[1];
   const profile = resolveWhisperProfile(profileId);
-  const pipe = await getTranscriber(profile.id, "cpu");
+  const pipe = await getTranscriberWithRetry(profile.id, "cpu");
   await pipe(new Float32Array(32000), {
     language: "spanish",
     task: "transcribe",
@@ -990,7 +1033,7 @@ ipcMain.handle("state:write", (_event, state) => writeState(activeUserDataPath, 
 ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
   try {
     const startedAt = performance.now();
-    const pipe = await getTranscriber(profileId, device);
+    const pipe = await getTranscriberWithRetry(profileId, device);
     const inferenceStartedAt = performance.now();
     const samples = audio instanceof Float32Array ? audio : new Float32Array(audio);
     const output = await pipe(samples, {
@@ -1012,26 +1055,48 @@ ipcMain.handle("transcription:run", async (_event, audio, language, profileId, d
     };
     return { text: output.text.trim(), metrics: lastTranscriptionMetrics, device: transcriberDevice };
   } catch (error) {
+    lastModelError = serializeModelError(error, lastModelLoadAttempts || 1);
     throw new Error(friendlyModelError(error));
   }
 });
 
 ipcMain.handle("models:clear", async () => {
-  if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
-  transcriber = undefined;
-  transcriberProfile = undefined;
-  transcriberDevice = undefined;
-  transcriberRequestedDevice = undefined;
-  transcriberPromise = undefined;
-  loadingProfile = undefined;
+  await resetTranscriber();
   await clearModelCache(activeUserDataPath);
   return true;
+});
+
+ipcMain.handle("models:repair", async (_event, profileId, device) => {
+  const profile = resolveWhisperProfile(profileId);
+  await resetTranscriber();
+  let cacheRebuilt = false;
+  try {
+    await getTranscriberWithRetry(profile.id, device, 1);
+  } catch (initialError) {
+    console.warn("Existing model cache failed validation; rebuilding it:", initialError);
+    await resetTranscriber();
+    await clearModelCache(activeUserDataPath);
+    cacheRebuilt = true;
+    await getTranscriberWithRetry(profile.id, device, 2);
+  }
+  const cacheDir = getModelCacheDir(activeUserDataPath);
+  return {
+    cacheMb: Math.round(await directorySize(cacheDir) / 1024 / 1024),
+    cacheRebuilt,
+    device: transcriberDevice,
+    profile: transcriberProfile
+  };
 });
 
 ipcMain.handle("overlay:set-state", (_event, state) => {
   updateOverlay(state);
   if (state.status === "idle" && activeShortcutMode === "toggle") shortcutRecording = false;
   return true;
+});
+ipcMain.on("overlay:set-level", (_event, level) => {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  const normalizedLevel = Math.max(0, Math.min(1, Number(level) || 0));
+  overlayWindow.webContents.send("overlay:level", normalizedLevel);
 });
 ipcMain.handle("taskbar:set-state", (_event, state) => {
   setRequestedTaskbarState(state?.status);
@@ -1059,6 +1124,8 @@ ipcMain.handle("app:diagnostics", async () => {
     memoryRssMb: Math.round(memory.rss / 1024 / 1024),
     heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
     lastModelLoadMs,
+    lastModelLoadAttempts,
+    lastModelError,
     lastTranscriptionMetrics,
     stateSchemaVersion: STATE_SCHEMA_VERSION,
     statePath: statePath(activeUserDataPath),

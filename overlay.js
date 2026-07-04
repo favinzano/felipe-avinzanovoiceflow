@@ -30,12 +30,10 @@ function applyBrand(brand) {
 
 applyBrand(brand);
 
-for (let index = 0; index < 62; index += 1) {
-  const bar = document.createElement("i");
+Array.from(signal.children).forEach((bar, index) => {
   bar.style.setProperty("--delay", `${index * -0.028}s`);
   bar.style.setProperty("--height", `${3 + Math.random() * 15}px`);
-  signal.appendChild(bar);
-}
+});
 
 overlayAPI.onState((state) => {
   overlay.dataset.status = state.status;
