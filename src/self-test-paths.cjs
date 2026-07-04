@@ -28,7 +28,8 @@ function resolveIsolatedAppPaths(argv) {
   }
   if (!selfTestOption) return null;
   const selfTestMode = argv.some((value) => value.startsWith('--self-test-model='))
-    || argv.includes('--self-test-audio-worklet');
+    || argv.includes('--self-test-audio-worklet')
+    || argv.includes('--self-test-desktop-bridge');
   if (!selfTestMode) throw new Error('--self-test-user-data is only valid with a self-test mode');
   return createIsolatedPaths(selfTestOption, '--self-test-user-data', 'self-test');
 }

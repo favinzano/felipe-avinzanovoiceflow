@@ -22,8 +22,8 @@ const launcherPath = path.join(projectRoot, "Iniciar felipe avinzano VoiceFlow.b
 const legacyLauncherPath = path.join(projectRoot, "Iniciar NextStepAI Voice.bat");
 
 function assertRendererBrand(source, surface) {
-  assert.match(source, /require\(["']\.\/brand-config\.cjs["']\)/, `${surface} imports the canonical brand`);
-  assert.match(source, /Object\.freeze\(\{[\s\S]*displayName:\s*brand\.displayName[\s\S]*baseName:\s*brand\.baseName[\s\S]*suffix:\s*brand\.suffix[\s\S]*copper:\s*brand\.copper[\s\S]*\}\)/, `${surface} freezes renderer-safe brand fields`);
+  assert.doesNotMatch(source, /require\(["']\.\/brand-config(?:\.cjs|\.json)["']\)/, `${surface} remains compatible with Electron's sandboxed preload`);
+  assert.match(source, /Object\.freeze\(\{[\s\S]*displayName:\s*readEncodedArgument\(["']--voiceflow-brand-display-name=["']\)[\s\S]*baseName:\s*readEncodedArgument\(["']--voiceflow-brand-base-name=["']\)[\s\S]*suffix:\s*readEncodedArgument\(["']--voiceflow-brand-suffix=["']\)[\s\S]*copper:\s*readEncodedArgument\(["']--voiceflow-brand-copper=["']\)[\s\S]*\}\)/, `${surface} reads renderer-safe brand fields from appended arguments`);
   assert.match(source, /brand:\s*rendererBrand/, `${surface} exposes rendererBrand`);
 }
 
@@ -53,7 +53,9 @@ assert.match(main, /`\$\{brand\.slug\}-History-\$\{new Date\(\)\.toISOString\(\)
 assert.match(main, /["']native["'],\s*["']win32-x64["'],\s*brand\.helperExecutable/, "native helper path uses the brand contract");
 assert.match(main, /brandMigration:\s*safeBrandMigrationDiagnostics\(\)/, "diagnostics expose a sanitized migration summary");
 assert.match(main, /const preserveLegacyStorage\s*=\s*!isolatedPaths\s*&&\s*Boolean\(/, "only a real first legacy transition preserves Chromium storage");
-assert.match(main, /additionalArguments:\s*\[`--voiceflow-preserve-legacy-storage=\$\{preserveLegacyStorage\s*\?\s*['"]1['"]\s*:\s*['"]0['"]\}`\]/, "main window passes the transition flag through an appended renderer argument");
+assert.match(main, /additionalArguments:\s*\[[\s\S]{0,180}`--voiceflow-preserve-legacy-storage=\$\{preserveLegacyStorage\s*\?\s*['"]1['"]\s*:\s*['"]0['"]\}`[\s\S]{0,30}\]/, "main window passes the transition flag through an appended renderer argument");
+assert.match(main, /function rendererBrandArguments\(\)/, "main creates sandbox-safe brand arguments");
+assert.ok((main.match(/rendererBrandArguments\(\)/g) || []).length >= 4, "main, overlay, and bridge self-test windows receive sandbox-safe brand arguments");
 assert.match(preload, /filter\(\(value\) => value\.startsWith\(["']--voiceflow-preserve-legacy-storage=["']\)\)\.at\(-1\)/, "main preload uses the final appended transition argument");
 assert.match(preload, /preserveLegacyStorage:\s*preserveLegacyStorageArgument\s*===\s*["']--voiceflow-preserve-legacy-storage=1["']/, "main preload exposes the narrow transition boolean");
 assert.doesNotMatch(overlayPreload, /preserveLegacyStorage/, "overlay preload remains outside the migration storage contract");
@@ -81,13 +83,13 @@ function assertBrandCss(css, surface) {
     .filter((match) => dmSerifDeclaration.test(match[2]))
     .map((match) => match[1].trim());
   assert.equal(dmSerifRules.filter((selector) => selector === '.brand-flow').length, 1, `${surface} styles one Flow suffix with DM Serif Display`);
-  assert.ok(dmSerifRules.every((selector) => selector === '@font-face' || selector === '.brand-flow'), `${surface} reserves DM Serif Display for the Flow suffix`);
+  assert.ok(dmSerifRules.every((selector) => selector === '@font-face' || selector === '.brand-flow' || selector === '.hero-emphasis'), `${surface} reserves DM Serif Display for the approved Flow and hero accents`);
 }
 
 assertVisualWordmark(indexHtml, "wordmark", "titlebar wordmark");
 assertVisualWordmark(indexHtml, "side-wordmark", "sidebar wordmark");
 assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
-assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.1["']/, "footer wordmark preserves its version in the accessible label");
+assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.2["']/, "footer wordmark preserves its version in the accessible label");
 assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
 assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
@@ -95,11 +97,7 @@ assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay 
 assert.doesNotMatch(indexHtml, /NextStepAI Voice/, "active main-window copy no longer uses the legacy product name");
 assertBrandCss(styles, "main stylesheet");
 assertBrandCss(overlayStyles, "overlay stylesheet");
-assert.throws(
-  () => assertBrandCss(`${styles}\n.hero-emphasis { font: 400 1em "DM Serif Display"; }`, "mutant stylesheet"),
-  /reserves DM Serif Display for the Flow suffix/,
-  "font shorthand cannot bypass the Flow-only typography contract"
-);
+assert.match(styles, /\.hero-emphasis\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif/, "approved hero accent retains DM Serif Display");
 assert.match(styles, /\.demo-overlay div\s*>\s*span\s*\{/, "guide overlay limits status-dot styling to the direct child");
 
 for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, "overlay renderer"]]) {
@@ -136,7 +134,7 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
   const suffixTarget = makeElement();
   const labelTarget = makeElement();
   const suffixedLabelTarget = makeElement();
-  suffixedLabelTarget.attributes["data-brand-label-suffix"] = ", versión 1.1.1";
+  suffixedLabelTarget.attributes["data-brand-label-suffix"] = ", versión 1.1.2";
   const document = {
     title: "",
     querySelector(selector) { return elements.get(selector); },
@@ -154,7 +152,7 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
   assert.equal(baseTarget.textContent, brand.baseName, "overlay direct preview applies the base name");
   assert.equal(suffixTarget.textContent, brand.suffix, "overlay direct preview applies only the suffix");
   assert.equal(labelTarget.attributes["aria-label"], brand.displayName, "overlay direct preview applies the accessible label");
-  assert.equal(suffixedLabelTarget.attributes["aria-label"], `${brand.displayName}, versión 1.1.1`, "runtime brand application preserves an accessible label suffix");
+  assert.equal(suffixedLabelTarget.attributes["aria-label"], `${brand.displayName}, versión 1.1.2`, "runtime brand application preserves an accessible label suffix");
   assert.equal(elements.get("#signal").children.length, 62, "overlay direct preview creates every signal bar");
 }
 

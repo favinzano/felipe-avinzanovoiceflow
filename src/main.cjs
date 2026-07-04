@@ -636,6 +636,15 @@ function friendlyModelError(error) {
   return "No fue posible preparar el modelo local. Usa “Reparar modelos” desde Soporte e inténtalo nuevamente.";
 }
 
+function rendererBrandArguments() {
+  return [
+    `--voiceflow-brand-display-name=${encodeURIComponent(brand.displayName)}`,
+    `--voiceflow-brand-base-name=${encodeURIComponent(brand.baseName)}`,
+    `--voiceflow-brand-suffix=${encodeURIComponent(brand.suffix)}`,
+    `--voiceflow-brand-copper=${encodeURIComponent(brand.copper)}`
+  ];
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     show: !startHidden,
@@ -654,7 +663,10 @@ function createWindow() {
     },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
-      additionalArguments: [`--voiceflow-preserve-legacy-storage=${preserveLegacyStorage ? '1' : '0'}`],
+      additionalArguments: [
+        ...rendererBrandArguments(),
+        `--voiceflow-preserve-legacy-storage=${preserveLegacyStorage ? '1' : '0'}`
+      ],
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false
@@ -698,6 +710,7 @@ function createOverlayWindow() {
     hasShadow: false,
     webPreferences: {
       preload: path.join(__dirname, "overlay-preload.cjs"),
+      additionalArguments: rendererBrandArguments(),
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -825,6 +838,45 @@ async function runAudioWorkletSelfTest() {
   return true;
 }
 
+async function runDesktopBridgeSelfTest() {
+  if (!process.argv.includes("--self-test-desktop-bridge")) return false;
+  const preloadErrors = [];
+  const testWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: [
+        ...rendererBrandArguments(),
+        "--voiceflow-preserve-legacy-storage=0"
+      ],
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  testWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
+    preloadErrors.push(`${preloadPath}: ${error?.message || error}`);
+  });
+  try {
+    await testWindow.loadFile(path.join(__dirname, "..", "index.html"));
+    const result = await testWindow.webContents.executeJavaScript(`({
+      hasVoiceAPI: Boolean(window.voiceAPI),
+      displayName: window.voiceAPI?.brand?.displayName,
+      canTranscribe: typeof window.voiceAPI?.transcribe === "function",
+      canReadState: typeof window.voiceAPI?.getState === "function"
+    })`);
+    if (preloadErrors.length) throw new Error(`Preload failed: ${preloadErrors.join(" | ")}`);
+    if (!result.hasVoiceAPI || !result.canTranscribe || !result.canReadState) {
+      throw new Error(`Desktop bridge unavailable: ${JSON.stringify(result)}`);
+    }
+    if (result.displayName !== brand.displayName) {
+      throw new Error(`Desktop bridge brand mismatch: ${result.displayName}`);
+    }
+  } finally {
+    testWindow.destroy();
+  }
+  return true;
+}
+
 app.whenReady().then(async () => {
   brandMigration = await migrationPromise;
   const migrationUsesTarget = migrationResultUsesTarget(brandMigration);
@@ -840,6 +892,10 @@ app.whenReady().then(async () => {
     : brandMigration.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
 
   try {
+    if (await runDesktopBridgeSelfTest()) {
+      app.exit(0);
+      return;
+    }
     if (await runAudioWorkletSelfTest()) {
       app.exit(0);
       return;
@@ -849,7 +905,7 @@ app.whenReady().then(async () => {
       return;
     }
   } catch (error) {
-    console.error("Packaged model self-test failed:", error);
+    console.error("Application self-test failed:", error);
     app.exit(1);
     return;
   }

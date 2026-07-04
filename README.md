@@ -4,7 +4,7 @@ Aplicacion de escritorio para convertir voz en texto con Whisper ejecutado local
 
 ## Instalación En Windows
 
-Para usuarios finales, utiliza el instalador versionado `felipe-avinzanovoiceflow-Setup-1.1.1-x64.exe`.
+Para usuarios finales, utiliza el instalador versionado `felipe-avinzanovoiceflow-Setup-1.1.2-x64.exe`.
 
 El archivo `Iniciar felipe avinzano VoiceFlow.bat` se mantiene únicamente para desarrollo local.
 
@@ -38,7 +38,7 @@ Si una descarga queda incompleta o dañada, abre `Soporte` y selecciona `Reparar
 
 ## Estado de produccion
 
-La versión `1.1.1` es la versión actual para Windows x64. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
+La versión `1.1.2` es la versión actual para Windows x64. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
 
 ## Soporte
 

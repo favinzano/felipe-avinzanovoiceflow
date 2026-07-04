@@ -18,6 +18,8 @@ try {
   assert.ok(fs.statSync(result.userData).isDirectory());
   assert.ok(fs.statSync(result.sessionData).isDirectory());
   assert.equal(result.mode, 'self-test');
+  const bridge = resolveIsolatedAppPaths(['--self-test-desktop-bridge', `--self-test-user-data=${root}`]);
+  assert.equal(bridge.mode, 'self-test');
   assert.throws(() => resolveSelfTestPaths([`--self-test-user-data=${root}`]), /only valid with a self-test/);
   assert.throws(() => resolveSelfTestPaths(['--self-test-model=fast', '--self-test-user-data=relative']), /absolute/);
   const qaRoot = path.join(root, 'qa');

@@ -65,6 +65,10 @@ try {
   $executable = Join-Path $target "$($brand.displayName).exe"
   if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Installed executable is missing." }
 
+  $bridgeTest = Start-Process -FilePath $executable -ArgumentList "--disable-gpu", "--self-test-desktop-bridge", "--self-test-user-data=`"$isolatedRoot`"" -Wait -PassThru
+  if ($bridgeTest.ExitCode -ne 0) { throw "Installed desktop bridge self-test failed with exit code $($bridgeTest.ExitCode)." }
+  Write-Output "Installed desktop bridge self-test passed."
+
   $appProcess = Start-Process -FilePath $executable -ArgumentList "--disable-gpu", "--allow-test-instance", "--test-user-data=`"$isolatedRoot`"" -PassThru
   Start-Sleep -Seconds 8
   $appProcess.Refresh()

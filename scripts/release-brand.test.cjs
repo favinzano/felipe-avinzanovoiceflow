@@ -112,6 +112,8 @@ assert.match(trayTest, /\$process\s*=\s*\$null[\s\S]*?try\s*\{[\s\S]*?Start-Proc
 const installerTest = fs.readFileSync(path.join(__dirname, 'test-installer.ps1'), 'utf8');
 assert.equal(packageJson.build.nsis.deleteAppDataOnUninstall, false, 'NSIS contract must preserve canonical Electron AppData on uninstall');
 assert.match(installerTest, /--test-user-data=`"\$isolatedRoot`"/, 'installer QA launches with a quoted explicit isolated app root');
+assert.match(installerTest, /--self-test-desktop-bridge/, 'installer QA exercises the sandboxed desktop bridge');
+assert.match(installerTest, /--self-test-user-data=`"\$isolatedRoot`"/, 'installer bridge QA uses an isolated app root');
 assert.match(installerTest, /-ArgumentList @\(\s*["']\/S["']\s*,\s*\(["']\/D=["'] \+ \$target\)\s*\)/, 'NSIS custom directory remains the final structured argument so paths with spaces are consumed correctly');
 assert.doesNotMatch(installerTest, /\$env:APPDATA/i, 'installer QA never accesses live AppData');
 assert.match(installerTest, /Join-Path \$isolatedRoot ["']userData["']/);

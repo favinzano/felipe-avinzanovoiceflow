@@ -8,6 +8,14 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.2] - 2026-07-04
+
+### Corregido
+
+- Corregida la carga del puente de escritorio en los preloads sandboxed de Electron.
+- Añadida una verificación del puente sobre el ejecutable instalado.
+- Restaurado DM Serif Display en el acento aprobado «siguiente paso».
+
 ## [1.1.1] - 2026-06-14
 
 ### Corregido

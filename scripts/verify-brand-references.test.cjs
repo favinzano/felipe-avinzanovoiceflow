@@ -129,7 +129,8 @@ assert.match(
 
 const projectRoot = path.resolve(__dirname, '..');
 const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
-assert.match(readme, /La versión `1\.1\.1` es la versión actual para Windows x64\./, 'README identifies the current release');
+const currentVersion = require(path.join(projectRoot, 'package.json')).version;
+assert.match(readme, new RegExp('La versión `' + currentVersion.replaceAll('.', '\\.') + '` es la versión actual para Windows x64\\.'), 'README identifies the current release');
 assert.doesNotMatch(readme, /1\.0\.0` se prepara como primer release/, 'README has no stale upcoming 1.0 release copy');
 
 const transitionGuide = fs.readFileSync(path.join(projectRoot, 'docs', 'UPDATE_AND_ROLLBACK.md'), 'utf8');

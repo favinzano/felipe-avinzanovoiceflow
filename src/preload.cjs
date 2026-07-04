@@ -1,11 +1,16 @@
 const { contextBridge, ipcRenderer } = require("electron");
-const brand = require("./brand-config.cjs");
+
+function readEncodedArgument(prefix) {
+  const argument = process.argv.filter((value) => value.startsWith(prefix)).at(-1);
+  if (!argument) throw new Error(`Missing required preload argument: ${prefix}`);
+  return decodeURIComponent(argument.slice(prefix.length));
+}
 
 const rendererBrand = Object.freeze({
-  displayName: brand.displayName,
-  baseName: brand.baseName,
-  suffix: brand.suffix,
-  copper: brand.copper
+  displayName: readEncodedArgument("--voiceflow-brand-display-name="),
+  baseName: readEncodedArgument("--voiceflow-brand-base-name="),
+  suffix: readEncodedArgument("--voiceflow-brand-suffix="),
+  copper: readEncodedArgument("--voiceflow-brand-copper=")
 });
 const preserveLegacyStorageArgument = process.argv.filter((value) => value.startsWith("--voiceflow-preserve-legacy-storage=")).at(-1);
 const rendererRuntime = Object.freeze({
