@@ -21,8 +21,8 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .status-dot { width: 5px; height: 5px; margin-left: auto; background: #b66d45; }
 .incision { position: relative; display: block; width: 17px; height: 17px; }.incision i { position: absolute; left: 1px; top: 2px; width: 11px; height: 11px; background: #f4f1eb; transform: rotate(-4deg); }.incision i + i { left: 4px; top: 3px; border: 1px solid #f4f1eb; background: transparent; transform: rotate(4deg); }
 .signal { height: 20px; display: flex; align-items: center; gap: 3px; margin: 12px 0 9px; }
-.signal i { width: 2px; height: var(--height); background: #b66d45; animation: wave .7s var(--delay) ease-in-out infinite alternate; }
-@keyframes wave { to { height: 3px; opacity: .32; } }
+.signal i { width: 2px; height: var(--height); opacity: .9; transform-origin: center; background: #b66d45; transition: background-color 200ms ease; animation: wave .7s var(--delay) cubic-bezier(.37,0,.63,1) infinite alternate; }
+@keyframes wave { to { transform: scaleY(.25); opacity: .32; } }
 .message-row { justify-content: space-between; padding-top: 9px; border-top: 1px solid rgba(244, 241, 235, .12); color: rgba(244, 241, 235, .55); font-size: 7px; letter-spacing: .02em; }
 .message-row b { color: rgba(244, 241, 235, .78); font-size: 7px; font-variant-numeric: tabular-nums; }
 .overlay[data-status="processing"] .signal i { background: #83a9c8; animation: process .8s var(--delay) ease-in-out infinite alternate; }
@@ -30,5 +30,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
 .overlay[data-status="success"] .signal i { background: #f4f1eb; animation: success .45s ease forwards; }
 .overlay[data-status="success"] .status-dot { background: #f4f1eb; }
 .overlay[data-status="error"] .signal i, .overlay[data-status="error"] .status-dot { background: #d17d61; }
+.status-dot { transition: background-color 200ms ease; }
 @keyframes process { to { opacity: .15; transform: translateX(2px); } }
-@keyframes success { to { height: 2px; opacity: .18; } }
+@keyframes success { to { transform: scaleY(.1); opacity: .18; } }
+@media (prefers-reduced-motion: reduce) { .signal i { animation: none; transform: scaleY(.6); } }
