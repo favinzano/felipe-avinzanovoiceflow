@@ -133,6 +133,7 @@ const elements = {
   reprocessButton: $("#reprocessButton"),
   dictionaryForm: $("#dictionaryForm"),
   dictionaryInput: $("#dictionaryInput"),
+  dictionaryCounter: $("#dictionaryCounter"),
   dictionaryList: $("#dictionaryList"),
   microphone: $("#microphoneSelect"),
   language: $("#languageSelect"),
@@ -198,6 +199,31 @@ function showToast(message) {
   showToast.timeout = setTimeout(() => elements.toast.classList.remove("show"), 2600);
 }
 
+function armTwoStepConfirm(button, confirmLabel, onConfirm, guard) {
+  const restLabel = button.textContent;
+  let armed = false;
+  let revertTimer = null;
+  button.addEventListener("click", () => {
+    if (guard && !guard()) return;
+    if (!armed) {
+      armed = true;
+      button.classList.add("confirming");
+      button.textContent = confirmLabel;
+      revertTimer = setTimeout(() => {
+        armed = false;
+        button.classList.remove("confirming");
+        button.textContent = restLabel;
+      }, 3200);
+      return;
+    }
+    clearTimeout(revertTimer);
+    armed = false;
+    button.classList.remove("confirming");
+    button.textContent = restLabel;
+    onConfirm();
+  });
+}
+
 function updateOverlay(status, message, timer = "") {
   clearTimeout(overlayHideTimer);
   voiceAPI.overlay({ status, message, timer });
@@ -231,18 +257,26 @@ function setStatus(status, detail) {
 }
 
 function createWaveform() {
-  for (let index = 0; index < 32; index += 1) {
+  for (let index = 0; index < 9; index += 1) {
     const bar = document.createElement("i");
-    bar.style.setProperty("--delay", `${index * -0.026}s`);
     elements.waveform.appendChild(bar);
   }
 }
 
-function renderVoiceLevel(rms = 0) {
-  const level = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, rms) / 0.08)));
-  elements.waveform.style.setProperty("--voice-floor", String(0.1 + level * 0.3));
-  elements.waveform.style.setProperty("--voice-peak", String(0.36 + level * 0.6));
-  return level;
+let smoothedWaveformLevels = Array(9).fill(0);
+
+function renderVoiceLevel(rms = 0, rawLevels) {
+  const samples = Array.isArray(rawLevels) && rawLevels.length === 9
+    ? rawLevels
+    : Array(9).fill(rms);
+  smoothedWaveformLevels = samples.map((sample, index) => {
+    const normalized = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, Number(sample) || 0) / 0.08)));
+    return smoothedWaveformLevels[index] * 0.7 + normalized * 0.3;
+  });
+  Array.from(elements.waveform.children).forEach((bar, index) => {
+    bar.style.transform = `scaleY(${(0.17 + smoothedWaveformLevels[index] * 0.83).toFixed(3)})`;
+  });
+  return smoothedWaveformLevels;
 }
 
 async function releaseAudioCapture() {
@@ -257,6 +291,7 @@ async function releaseAudioCapture() {
   captureNode = undefined;
   silentGain = undefined;
   voiceActivityDetector = undefined;
+  smoothedWaveformLevels = Array(9).fill(0);
   renderVoiceLevel(0);
 }
 
@@ -304,7 +339,7 @@ async function beginRecording(source = "button") {
         recordedPcmChunks.push(event.data);
         return;
       }
-      if (event.data?.type === "level") handleVoiceLevel(event.data.rms);
+      if (event.data?.type === "level") handleVoiceLevel(event.data.rms, event.data.levels);
     };
     audioSource.connect(captureNode);
     captureNode.connect(silentGain);
@@ -334,9 +369,9 @@ async function beginRecording(source = "button") {
   }
 }
 
-function handleVoiceLevel(rms) {
+function handleVoiceLevel(rms, levels) {
   if (!recording) return;
-  voiceAPI.overlayLevel(renderVoiceLevel(rms));
+  voiceAPI.overlayLevel(renderVoiceLevel(rms, levels));
   if (!settings.autoStopEnabled || autoStopPending) return;
   if (!voiceActivityDetector?.update(rms)) return;
   autoStopPending = true;
@@ -568,10 +603,11 @@ $$(".nav-item").forEach((button) => button.addEventListener("click", () => switc
 $$(".go-guide").forEach((button) => button.addEventListener("click", () => switchPanel("guide")));
 elements.recordButton.addEventListener("click", () => toggleRecording("button"));
 elements.reprocessButton.addEventListener("click", () => processAudio(lastAudio, "button"));
-elements.clearHistory.addEventListener("click", () => {
+armTwoStepConfirm(elements.clearHistory, "¿Confirmar borrado?", () => {
   history = [];
   persistState();
   renderHistory();
+  showToast("Historial borrado.");
 });
 elements.historySearch.addEventListener("input", renderHistory);
 elements.exportHistory.addEventListener("click", async () => {
@@ -582,6 +618,13 @@ elements.exportHistory.addEventListener("click", async () => {
   const exported = await voiceAPI.exportHistory(history);
   showToast(exported ? "Historial exportado." : "Exportación cancelada.");
 });
+function updateDictionaryCounter() {
+  const length = elements.dictionaryInput.value.length;
+  const max = Number(elements.dictionaryInput.maxLength) || 80;
+  elements.dictionaryCounter.textContent = `${length} / ${max}`;
+  elements.dictionaryCounter.classList.toggle("near-limit", length >= max);
+}
+elements.dictionaryInput.addEventListener("input", updateDictionaryCounter);
 elements.dictionaryForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const term = elements.dictionaryInput.value.trim();
@@ -589,6 +632,7 @@ elements.dictionaryForm.addEventListener("submit", (event) => {
   dictionary.unshift(term);
   persistState();
   elements.dictionaryInput.value = "";
+  updateDictionaryCounter();
   renderDictionary();
   showToast("Término añadido al diccionario.");
 });
@@ -634,59 +678,72 @@ elements.guideNext.addEventListener("click", () => {
   renderGuide();
 });
 elements.diagnosticsButton.addEventListener("click", async () => {
-  const diagnostics = await voiceAPI.diagnostics();
-  const report = [
-    `${brand.displayName} diagnostics`,
-    `Platform: ${diagnostics.platform}`,
-    `Version: ${diagnostics.version}`,
-    `Model status: ${elements.modelBadge.textContent.trim()}`,
-    `Whisper profile selected: ${resolveWhisperProfile(settings.whisperProfile).shortLabel}`,
-    `Whisper profile loaded: ${diagnostics.loadedWhisperProfile}`,
-    `Inference device: ${diagnostics.inferenceDevice}`,
-    `Requested inference device: ${diagnostics.requestedInferenceDevice}`,
-    `Last device fallback: ${diagnostics.lastDeviceFallback || "none"}`,
-    `Last model load attempts: ${diagnostics.lastModelLoadAttempts || 0}`,
-    `Last model error: ${JSON.stringify(diagnostics.lastModelError || null)}`,
-    `Model cache: ${diagnostics.modelCacheMb} MB`,
-    `Memory RSS: ${diagnostics.memoryRssMb} MB`,
-    `Heap used: ${diagnostics.heapUsedMb} MB`,
-    `Record shortcut: ${diagnostics.shortcuts.record}`,
-    `Reprocess shortcut: ${diagnostics.shortcuts.reprocess}`,
-    `Shortcut mode: ${diagnostics.shortcutMode || settings.shortcutMode}`,
-    `Last transcription metrics: ${JSON.stringify(diagnostics.lastTranscriptionMetrics || null)}`,
-    `State schema: ${diagnostics.stateSchemaVersion}`,
-    `State path: ${diagnostics.statePath}`,
-    `Microphone selection: ${elements.microphone.value || "default"}`,
-    `Microphones available: ${availableMicrophones.length}`,
-    `Dictionary terms: ${dictionary.length}`,
-    `History entries: ${history.length}`
-  ].join("\n");
-  await voiceAPI.copy(report);
-  showToast("Diagnóstico copiado. No incluye transcripciones.");
-});
-elements.repairModelsButton.addEventListener("click", async () => {
-  if (recording || processing) {
-    showToast("Espera a que termine la grabación antes de reparar los modelos.");
-    return;
-  }
-  elements.modelBadge.classList.add("loading");
-  elements.modelBadge.classList.remove("error");
-  elements.modelBadge.innerHTML = "<span></span>Reparando modelos";
   try {
-    const profile = resolveWhisperProfile(settings.whisperProfile);
-    const repaired = await voiceAPI.repairModels(profile.id, settings.inferenceDevice);
-    elements.modelBadge.classList.remove("loading", "error");
-    elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(repaired.device || "cpu").toUpperCase()}`;
-    showToast(repaired.cacheRebuilt
-      ? `Modelo reparado y validado (${repaired.cacheMb} MB).`
-      : `Modelo validado y listo (${repaired.cacheMb} MB).`);
+    const diagnostics = await voiceAPI.diagnostics();
+    const report = [
+      `${brand.displayName} diagnostics`,
+      `Platform: ${diagnostics.platform ?? "—"}`,
+      `Version: ${diagnostics.version ?? "—"}`,
+      `Model status: ${elements.modelBadge.textContent.trim()}`,
+      `Whisper profile selected: ${resolveWhisperProfile(settings.whisperProfile).shortLabel}`,
+      `Whisper profile loaded: ${diagnostics.loadedWhisperProfile ?? "—"}`,
+      `Inference device: ${diagnostics.inferenceDevice ?? "—"}`,
+      `Requested inference device: ${diagnostics.requestedInferenceDevice ?? "—"}`,
+      `Last device fallback: ${diagnostics.lastDeviceFallback || "none"}`,
+      `Last model load attempts: ${diagnostics.lastModelLoadAttempts || 0}`,
+      `Last model error: ${JSON.stringify(diagnostics.lastModelError || null)}`,
+      `Model cache: ${diagnostics.modelCacheMb ?? "—"} MB`,
+      `Memory RSS: ${diagnostics.memoryRssMb ?? "—"} MB`,
+      `Heap used: ${diagnostics.heapUsedMb ?? "—"} MB`,
+      `Record shortcut: ${diagnostics.shortcuts?.record ?? "—"}`,
+      `Reprocess shortcut: ${diagnostics.shortcuts?.reprocess ?? "—"}`,
+      `Record shortcut registered: ${Boolean(diagnostics.shortcutRegistered?.record)}`,
+      `Reprocess shortcut registered: ${Boolean(diagnostics.shortcutRegistered?.reprocess)}`,
+      `Shortcut mode: ${diagnostics.shortcutMode || settings.shortcutMode}`,
+      `Last transcription metrics: ${JSON.stringify(diagnostics.lastTranscriptionMetrics || null)}`,
+      `State schema: ${diagnostics.stateSchemaVersion ?? "—"}`,
+      `State path: ${diagnostics.statePath ?? "—"}`,
+      `Microphone selection: ${elements.microphone.value || "default"}`,
+      `Microphones available: ${availableMicrophones.length}`,
+      `Dictionary terms: ${dictionary.length}`,
+      `History entries: ${history.length}`
+    ].join("\n");
+    await voiceAPI.copy(report);
+    showToast("Diagnóstico copiado. No incluye transcripciones.");
   } catch (error) {
-    elements.modelBadge.classList.remove("loading");
-    elements.modelBadge.classList.add("error");
-    elements.modelBadge.innerHTML = "<span></span>No fue posible reparar";
-    showToast(`No fue posible reparar los modelos: ${error.message || error}`);
+    showToast("No se pudo generar el diagnóstico.");
   }
 });
+armTwoStepConfirm(
+  elements.repairModelsButton,
+  "¿Confirmar reparación?",
+  async () => {
+    elements.modelBadge.classList.add("loading");
+    elements.modelBadge.classList.remove("error");
+    elements.modelBadge.innerHTML = "<span></span>Reparando modelos";
+    try {
+      const profile = resolveWhisperProfile(settings.whisperProfile);
+      const repaired = await voiceAPI.repairModels(profile.id, settings.inferenceDevice);
+      elements.modelBadge.classList.remove("loading", "error");
+      elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(repaired.device || "cpu").toUpperCase()}`;
+      showToast(repaired.cacheRebuilt
+        ? `Modelo reparado y validado (${repaired.cacheMb} MB).`
+        : `Modelo validado y listo (${repaired.cacheMb} MB).`);
+    } catch (error) {
+      elements.modelBadge.classList.remove("loading");
+      elements.modelBadge.classList.add("error");
+      elements.modelBadge.innerHTML = "<span></span>No fue posible reparar";
+      showToast(`No fue posible reparar los modelos: ${error.message || error}`);
+    }
+  },
+  () => {
+    if (recording || processing) {
+      showToast("Espera a que termine la grabación antes de reparar los modelos.");
+      return false;
+    }
+    return true;
+  }
+);
 elements.closeBehavior.addEventListener("change", async () => {
   await voiceAPI.setCloseBehavior(elements.closeBehavior.value);
   showToast("Comportamiento de cierre guardado.");
