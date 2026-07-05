@@ -65,6 +65,15 @@ try {
   $executable = Join-Path $target "$($brand.displayName).exe"
   if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Installed executable is missing." }
 
+  $shortcutReport = Join-Path $isolatedRoot "shortcut-registration.json"
+  $shortcutTest = Start-Process -FilePath $executable -ArgumentList "--disable-gpu", "--self-test-shortcuts", "--self-test-shortcut-report=`"$shortcutReport`"", "--self-test-user-data=`"$isolatedRoot`"" -Wait -PassThru
+  if ($shortcutTest.ExitCode -ne 0) { throw "Installed shortcut self-test failed with exit code $($shortcutTest.ExitCode)." }
+  if (-not (Test-Path -LiteralPath $shortcutReport -PathType Leaf)) { throw "Installed shortcut self-test did not write its report." }
+  $shortcutResult = Get-Content -LiteralPath $shortcutReport -Raw | ConvertFrom-Json
+  if ($shortcutResult.shortcuts.record -ne "CommandOrControl+Shift+Space") { throw "Installed primary shortcut is incorrect." }
+  if (-not $shortcutResult.registered.record -or -not $shortcutResult.registered.reprocess) { throw "Windows did not retain both installed shortcuts." }
+  Write-Output "Installed native shortcut monitor self-test passed."
+
   $bridgeTest = Start-Process -FilePath $executable -ArgumentList "--disable-gpu", "--self-test-desktop-bridge", "--self-test-user-data=`"$isolatedRoot`"" -Wait -PassThru
   if ($bridgeTest.ExitCode -ne 0) { throw "Installed desktop bridge self-test failed with exit code $($bridgeTest.ExitCode)." }
   Write-Output "Installed desktop bridge self-test passed."

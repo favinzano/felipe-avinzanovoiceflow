@@ -89,13 +89,15 @@ function assertBrandCss(css, surface) {
 assertVisualWordmark(indexHtml, "wordmark", "titlebar wordmark");
 assertVisualWordmark(indexHtml, "side-wordmark", "sidebar wordmark");
 assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
-assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.2["']/, "footer wordmark preserves its version in the accessible label");
+assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.3["']/, "footer wordmark preserves its version in the accessible label");
 assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
 assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
 assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay HTML has a complete fallback title");
 const overlaySignalMarkup = overlayHtml.match(/<div class="signal"[^>]*>([\s\S]*?)<\/div>/)?.[1] || "";
-assert.equal((overlaySignalMarkup.match(/<i><\/i>/g) || []).length, 48, "overlay HTML renders every signal bar before JavaScript runs");
+assert.equal((overlaySignalMarkup.match(/<i><\/i>/g) || []).length, 9, "overlay HTML renders the nine live audio bars before JavaScript runs");
+assert.match(overlayRenderer, /overlayAPI\.onLevel\(/, "overlay waveform listens for live microphone levels");
+assert.doesNotMatch(overlayRenderer, /Math\.random/, "overlay waveform never substitutes random decorative motion for microphone levels");
 assert.doesNotMatch(indexHtml, /NextStepAI Voice/, "active main-window copy no longer uses the legacy product name");
 assertBrandCss(styles, "main stylesheet");
 assertBrandCss(overlayStyles, "overlay stylesheet");
@@ -136,7 +138,7 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
   const suffixTarget = makeElement();
   const labelTarget = makeElement();
   const suffixedLabelTarget = makeElement();
-  suffixedLabelTarget.attributes["data-brand-label-suffix"] = ", versión 1.1.2";
+  suffixedLabelTarget.attributes["data-brand-label-suffix"] = ", versión 1.1.3";
   const document = {
     title: "",
     querySelector(selector) { return elements.get(selector); },
@@ -154,7 +156,7 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
   assert.equal(baseTarget.textContent, brand.baseName, "overlay direct preview applies the base name");
   assert.equal(suffixTarget.textContent, brand.suffix, "overlay direct preview applies only the suffix");
   assert.equal(labelTarget.attributes["aria-label"], brand.displayName, "overlay direct preview applies the accessible label");
-  assert.equal(suffixedLabelTarget.attributes["aria-label"], `${brand.displayName}, versión 1.1.2`, "runtime brand application preserves an accessible label suffix");
+  assert.equal(suffixedLabelTarget.attributes["aria-label"], `${brand.displayName}, versión 1.1.3`, "runtime brand application preserves an accessible label suffix");
   assert.equal(elements.get("#signal").children.length, 0, "overlay renderer does not duplicate the signal bars supplied by HTML");
 }
 

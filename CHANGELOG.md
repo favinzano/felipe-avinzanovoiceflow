@@ -8,6 +8,20 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.3] - 2026-07-04
+
+### Corregido
+
+- Restaurado el atajo global `Ctrl+Shift+Space` mediante listeners nativos no
+  exclusivos, incluso si otra aplicación reservó la misma combinación, y una
+  autoprueba sobre la aplicación instalada.
+- Restaurado el pegado en el control que tenía el foco al iniciar el dictado,
+  mediante captura y recuperación nativas del foco de Windows.
+- Sustituidas las ondas decorativas y aleatorias por nueve niveles derivados
+  del audio real, suavizados y compartidos por la interfaz principal y el
+  overlay flotante.
+- Aumentada la legibilidad y restauradas las esquinas redondeadas del overlay.
+
 ## [1.1.2] - 2026-07-04
 
 ### Corregido

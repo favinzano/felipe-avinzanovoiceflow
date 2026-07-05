@@ -47,9 +47,9 @@ let isQuitting = false;
 let closeDialogOpen = false;
 let manualUpdateCheck = false;
 let activeShortcuts;
+let shortcutRegistrationStatus = { record: false, reprocess: false };
 let activeShortcutMode = "toggle";
-let shortcutMonitor;
-let shortcutMonitorBuffer = "";
+const shortcutMonitors = new Map();
 let requestedTaskbarState = "idle";
 let modelDownloadActive = false;
 let taskbarPulseTimer;
@@ -314,15 +314,16 @@ async function handleReprocessShortcut() {
   sendToMainWindow("shortcut:reprocess");
 }
 
-function stopShortcutMonitor() {
-  const monitor = shortcutMonitor;
-  shortcutMonitor = undefined;
-  shortcutMonitorBuffer = "";
-  if (monitor && !monitor.killed) monitor.kill();
-  if (monitor || activeShortcutMode === "hold") handleHoldShortcutReleased();
+function stopShortcutMonitors() {
+  const hadMonitors = shortcutMonitors.size > 0;
+  for (const state of shortcutMonitors.values()) {
+    if (!state.process.killed) state.process.kill();
+  }
+  shortcutMonitors.clear();
+  if (hadMonitors || activeShortcutMode === "hold") handleHoldShortcutReleased();
 }
 
-function startShortcutMonitor(accelerator) {
+function startShortcutMonitor(kind, accelerator, mode = "hold") {
   if (process.platform !== "win32") throw new Error("El modo mantener solo esta disponible en Windows.");
   const helper = pasteHelperPath();
   if (!fsSync.existsSync(helper)) throw new Error("Falta el helper nativo requerido para el modo mantener.");
@@ -331,18 +332,24 @@ function startShortcutMonitor(accelerator) {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"]
   });
-  shortcutMonitor = monitor;
+  const state = { process: monitor, buffer: "", ready: false };
+  shortcutMonitors.set(kind, state);
   monitor.stdout.setEncoding("utf8");
   monitor.stdout.on("data", (chunk) => {
-    shortcutMonitorBuffer += chunk;
-    const lines = shortcutMonitorBuffer.split(/\r?\n/);
-    shortcutMonitorBuffer = lines.pop() || "";
+    state.buffer += chunk;
+    const lines = state.buffer.split(/\r?\n/);
+    state.buffer = lines.pop() || "";
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
         const event = JSON.parse(line);
-        if (event.type === "pressed") handleHoldShortcutPressed();
-        if (event.type === "released") handleHoldShortcutReleased();
+        if (event.type === "ready") state.ready = true;
+        if (event.type === "pressed") {
+          if (kind === "reprocess") handleReprocessShortcut();
+          else if (mode === "hold") handleHoldShortcutPressed();
+          else handleRecordShortcut();
+        }
+        if (kind === "record" && event.type === "released" && mode === "hold") handleHoldShortcutReleased();
         if (event.type === "error") console.error("Shortcut monitor hook error:", event.error);
       } catch (error) {
         console.error("Invalid shortcut monitor event:", error);
@@ -351,16 +358,16 @@ function startShortcutMonitor(accelerator) {
   });
   monitor.stderr.on("data", (chunk) => console.error("Shortcut monitor:", chunk.toString().trim()));
   monitor.on("error", (error) => {
-    if (shortcutMonitor !== monitor) return;
-    shortcutMonitor = undefined;
-    handleHoldShortcutReleased();
+    if (shortcutMonitors.get(kind)?.process !== monitor) return;
+    shortcutMonitors.delete(kind);
+    if (kind === "record") handleHoldShortcutReleased();
     console.error("Shortcut monitor failed:", error);
     sendToMainWindow("shortcut:error");
   });
   monitor.on("exit", (code) => {
-    if (shortcutMonitor !== monitor) return;
-    shortcutMonitor = undefined;
-    handleHoldShortcutReleased();
+    if (shortcutMonitors.get(kind)?.process !== monitor) return;
+    shortcutMonitors.delete(kind);
+    if (kind === "record") handleHoldShortcutReleased();
     console.error(`Shortcut monitor exited unexpectedly with code ${code}.`);
     sendToMainWindow("shortcut:error");
   });
@@ -375,18 +382,28 @@ function registerGlobalShortcuts(shortcuts, mode = activeShortcutMode) {
 
   const previous = activeShortcuts;
   const previousMode = activeShortcutMode;
-  stopShortcutMonitor();
+  stopShortcutMonitors();
   globalShortcut.unregisterAll();
   let recordRegistered = false;
   let reprocessRegistered = false;
   try {
-    if (mode === "hold") {
-      startShortcutMonitor(shortcuts.record);
+    if (process.platform === "win32") {
+      startShortcutMonitor("record", shortcuts.record, mode);
       recordRegistered = true;
+    } else if (mode === "hold") {
+      throw new Error("El modo mantener solo esta disponible en Windows.");
     } else {
-      recordRegistered = globalShortcut.register(shortcuts.record, handleRecordShortcut);
+      recordRegistered = globalShortcut.register(shortcuts.record, handleRecordShortcut)
+        && globalShortcut.isRegistered(shortcuts.record);
     }
-    reprocessRegistered = recordRegistered && globalShortcut.register(shortcuts.reprocess, handleReprocessShortcut);
+    if (recordRegistered && process.platform === "win32") {
+      startShortcutMonitor("reprocess", shortcuts.reprocess, "toggle");
+      reprocessRegistered = true;
+    } else {
+      reprocessRegistered = recordRegistered
+        && globalShortcut.register(shortcuts.reprocess, handleReprocessShortcut)
+        && globalShortcut.isRegistered(shortcuts.reprocess);
+    }
   } catch (error) {
     console.error("Invalid global shortcut:", error);
   }
@@ -394,18 +411,28 @@ function registerGlobalShortcuts(shortcuts, mode = activeShortcutMode) {
   if (recordRegistered && reprocessRegistered) {
     activeShortcuts = { ...shortcuts };
     activeShortcutMode = mode;
+    shortcutRegistrationStatus = { record: true, reprocess: true };
     return activeShortcuts;
   }
 
-  stopShortcutMonitor();
+  stopShortcutMonitors();
   globalShortcut.unregisterAll();
+  shortcutRegistrationStatus = { record: false, reprocess: false };
   if (previous) {
     try {
-      if (previousMode === "hold") startShortcutMonitor(previous.record);
+      if (process.platform === "win32") {
+        startShortcutMonitor("record", previous.record, previousMode);
+        startShortcutMonitor("reprocess", previous.reprocess, "toggle");
+      }
+      else if (previousMode === "hold") throw new Error("El modo mantener solo esta disponible en Windows.");
       else globalShortcut.register(previous.record, handleRecordShortcut);
-      globalShortcut.register(previous.reprocess, handleReprocessShortcut);
+      if (process.platform !== "win32") globalShortcut.register(previous.reprocess, handleReprocessShortcut);
       activeShortcuts = previous;
       activeShortcutMode = previousMode;
+      shortcutRegistrationStatus = {
+        record: process.platform === "win32" || globalShortcut.isRegistered(previous.record),
+        reprocess: process.platform === "win32" || globalShortcut.isRegistered(previous.reprocess)
+      };
     } catch (restoreError) {
       console.error("Failed to restore previous shortcuts:", restoreError);
     }
@@ -920,6 +947,33 @@ async function runDesktopBridgeSelfTest() {
   return true;
 }
 
+async function runShortcutSelfTest() {
+  if (!process.argv.includes("--self-test-shortcuts")) return false;
+  const shortcuts = registerGlobalShortcuts(DEFAULT_SHORTCUTS, "toggle");
+  if (process.platform === "win32") {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const recordMonitor = shortcutMonitors.get("record");
+    const reprocessMonitor = shortcutMonitors.get("reprocess");
+    if (!recordMonitor?.ready || recordMonitor.process.killed || !reprocessMonitor?.ready || reprocessMonitor.process.killed) {
+      throw new Error("The native Windows shortcut monitors did not become ready.");
+    }
+  }
+  const report = {
+    shortcuts,
+    registered: { ...shortcutRegistrationStatus }
+  };
+  const reportArgument = process.argv.find((value) => value.startsWith("--self-test-shortcut-report="));
+  if (reportArgument) {
+    const reportPath = path.resolve(reportArgument.slice("--self-test-shortcut-report=".length));
+    await fs.mkdir(path.dirname(reportPath), { recursive: true });
+    await fs.writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
+  }
+  if (!report.registered.record || !report.registered.reprocess) {
+    throw new Error(`Shortcut registration failed: ${JSON.stringify(report)}`);
+  }
+  return true;
+}
+
 app.whenReady().then(async () => {
   brandMigration = await migrationPromise;
   const migrationUsesTarget = migrationResultUsesTarget(brandMigration);
@@ -935,6 +989,10 @@ app.whenReady().then(async () => {
     : brandMigration.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
 
   try {
+    if (await runShortcutSelfTest()) {
+      app.exit(0);
+      return;
+    }
     if (await runDesktopBridgeSelfTest()) {
       app.exit(0);
       return;
@@ -1095,8 +1153,9 @@ ipcMain.handle("overlay:set-state", (_event, state) => {
 });
 ipcMain.on("overlay:set-level", (_event, level) => {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  const normalizedLevel = Math.max(0, Math.min(1, Number(level) || 0));
-  overlayWindow.webContents.send("overlay:level", normalizedLevel);
+  if (!Array.isArray(level) || level.length !== 9) return;
+  const normalizedLevels = level.map((value) => Math.max(0, Math.min(1, Number(value) || 0)));
+  overlayWindow.webContents.send("overlay:level", normalizedLevels);
 });
 ipcMain.handle("taskbar:set-state", (_event, state) => {
   setRequestedTaskbarState(state?.status);
@@ -1120,7 +1179,9 @@ ipcMain.handle("app:diagnostics", async () => {
     requestedInferenceDevice: transcriberRequestedDevice || loadingDevice || "none",
     lastDeviceFallback,
     shortcuts: activeShortcuts || getShortcuts(activeUserDataPath),
+    shortcutRegistered: { ...shortcutRegistrationStatus },
     shortcutMode: activeShortcutMode,
+    shortcutMonitorReady: Object.fromEntries([...shortcutMonitors].map(([kind, state]) => [kind, state.ready])),
     memoryRssMb: Math.round(memory.rss / 1024 / 1024),
     heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
     lastModelLoadMs,
@@ -1185,7 +1246,7 @@ app.on("before-quit", () => {
 });
 app.on("will-quit", () => {
   clearTaskbarPulse();
-  stopShortcutMonitor();
+  stopShortcutMonitors();
   globalShortcut.unregisterAll();
 });
 

@@ -185,9 +185,13 @@ internal static class Program
             && AttachThreadInput(currentThread, targetThread, true);
         BringWindowToTop(handle);
         SetForegroundWindow(handle);
-        if (focusHandle != IntPtr.Zero) SetFocus(focusHandle);
+        var setFocusResult = focusHandle != IntPtr.Zero ? SetFocus(focusHandle) : IntPtr.Zero;
+        var setFocusError = focusHandle != IntPtr.Zero && setFocusResult == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
         Thread.Sleep(120);
         var foregroundHandle = GetForegroundWindow();
+        var infoAfterFocus = new GuiThreadInfo { size = Marshal.SizeOf<GuiThreadInfo>() };
+        GetGUIThreadInfo(targetThread, ref infoAfterFocus);
+        var actualFocusHandle = infoAfterFocus.focusedWindow;
         if (foregroundHandle != handle)
         {
             if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
@@ -206,7 +210,22 @@ internal static class Program
         var win32Error = sent == (uint)inputs.Length ? 0 : Marshal.GetLastWin32Error();
         if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
         if (attachedToForeground) AttachThreadInput(currentThread, foregroundThread, false);
-        Write(new { ok = sent == (uint)inputs.Length, sent, expected = inputs.Length, inputSize = Marshal.SizeOf<Input>(), win32Error, error = sent == (uint)inputs.Length ? null : "send_input_denied" });
+        Write(new
+        {
+            ok = sent == (uint)inputs.Length,
+            sent,
+            expected = inputs.Length,
+            inputSize = Marshal.SizeOf<Input>(),
+            win32Error,
+            error = sent == (uint)inputs.Length ? null : "send_input_denied",
+            attachedToTarget,
+            attachedToForeground,
+            requestedFocusHandle = focusHandle.ToInt64(),
+            setFocusPreviousHandle = setFocusResult.ToInt64(),
+            setFocusError,
+            actualFocusHandleAfterSetFocus = actualFocusHandle.ToInt64(),
+            focusMatched = focusHandle == IntPtr.Zero || actualFocusHandle == focusHandle
+        });
         return sent == (uint)inputs.Length ? 0 : 5;
     }
 
