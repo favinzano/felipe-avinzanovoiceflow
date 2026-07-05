@@ -21,7 +21,8 @@ const {
   setShortcutMode,
   setShortcuts
 } = require("./app-preferences.cjs");
-const { createInputStrategy, resolveWin32HelperPath } = require("./input-helper.cjs");
+const { createInputStrategy, resolveWin32HelperPath, PASTE_FAILURE_REASON } = require("./input-helper.cjs");
+const { notifyPastePermissionDenied } = require("./paste-permission-notice.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { loadModelWithRetry } = require("./model-recovery.cjs");
 const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
@@ -853,7 +854,7 @@ async function pasteIntoActiveApp(text) {
     return await inputStrategy.paste(target);
   } catch (error) {
     console.error("Native input helper could not inject paste:", error);
-    return false;
+    return { ok: false, reason: PASTE_FAILURE_REASON.UNKNOWN };
   }
 }
 
@@ -1078,6 +1079,15 @@ ipcMain.handle("clipboard:write", (_event, text) => {
 
 ipcMain.handle("clipboard:paste", async (_event, text) => {
   return pasteIntoActiveApp(text);
+});
+
+ipcMain.handle("paste:notify-permission-denied", async () => {
+  await notifyPastePermissionDenied({
+    platform: process.platform,
+    userDataPath: activeUserDataPath,
+    dialogApi: dialog,
+    shellApi: shell
+  });
 });
 
 ipcMain.handle("history:export", async (_event, entries) => {

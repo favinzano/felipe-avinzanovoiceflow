@@ -6,6 +6,7 @@ const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
 const { initializeVisualizer } = require("./audio-visualizer.js");
+const { PASTE_FAILURE_REASON } = require("./paste-failure-reason.cjs");
 
 const voiceAPI = window.voiceAPI || {
   brand: {
@@ -16,7 +17,15 @@ const voiceAPI = window.voiceAPI || {
   },
   runtime: { isPackaged: false, preserveLegacyStorage: false },
   copy: async (text) => navigator.clipboard?.writeText(text),
-  paste: async (text) => navigator.clipboard?.writeText(text),
+  paste: async (text) => {
+    try {
+      await navigator.clipboard?.writeText(text);
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: PASTE_FAILURE_REASON.AUTOMATION_UNAVAILABLE };
+    }
+  },
+  notifyPastePermissionDenied: async () => {},
   exportHistory: async () => false,
   getState: async () => ({ settings: {}, history: [], dictionary: [], microphone: "" }),
   migrateLegacyState: async (state) => state,
@@ -449,14 +458,26 @@ async function finishRecording() {
   await processAudio(lastAudio, triggerSource);
 }
 
+function pasteFailureToastMessage(reason) {
+  if (reason === PASTE_FAILURE_REASON.PERMISSION_DENIED) {
+    return "No se pudo pegar: falta un permiso del sistema. El texto quedó en el portapapeles.";
+  }
+  return "No se pudo pegar automáticamente. El texto quedó guardado en el portapapeles.";
+}
+
 async function deliverText(text, source) {
   if (settings.deliveryMode === "copy" || settings.deliveryMode === "paste-copy") await voiceAPI.copy(text);
   if (settings.deliveryMode === "paste-copy" && source === "shortcut") {
     const pasted = await voiceAPI.paste(text);
-    showToast(pasted
-      ? "Texto pegado y guardado en el portapapeles."
-      : "Windows bloqueó el pegado. El texto quedó seguro en el portapapeles.");
-    return { pasted };
+    if (pasted.ok) {
+      showToast("Texto pegado y guardado en el portapapeles.");
+    } else {
+      showToast(pasteFailureToastMessage(pasted.reason));
+      if (pasted.reason === PASTE_FAILURE_REASON.PERMISSION_DENIED) {
+        voiceAPI.notifyPastePermissionDenied().catch((error) => console.error("No se pudo mostrar el aviso de permisos:", error));
+      }
+    }
+    return { pasted: pasted.ok };
   } else if (settings.deliveryMode === "copy") {
     showToast("Texto guardado en el portapapeles.");
   } else {
@@ -768,11 +789,14 @@ voiceAPI.onPasteLast(async () => {
     showToast("Aún no hay transcripciones para pegar.");
     return;
   }
-  try {
-    await voiceAPI.paste(history[0].text);
+  const pasted = await voiceAPI.paste(history[0].text);
+  if (pasted.ok) {
     showToast("Última transcripción pegada.");
-  } catch (error) {
-    showToast(`No fue posible pegar la transcripción: ${error.message || error}`);
+  } else {
+    showToast(pasteFailureToastMessage(pasted.reason));
+    if (pasted.reason === PASTE_FAILURE_REASON.PERMISSION_DENIED) {
+      voiceAPI.notifyPastePermissionDenied().catch((error) => console.error("No se pudo mostrar el aviso de permisos:", error));
+    }
   }
 });
 voiceAPI.onModelProgress((progress) => {

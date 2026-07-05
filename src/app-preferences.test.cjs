@@ -6,11 +6,13 @@ const {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
   getCloseBehavior,
+  getPastePermissionNoticeDismissed,
   getShortcutMode,
   getShortcuts,
   hasAutoStartPreference,
   setAutoStartEnabled,
   setCloseBehavior,
+  setPastePermissionNoticeDismissed,
   setShortcutMode,
   setShortcuts
 } = require("./app-preferences.cjs");
@@ -46,6 +48,12 @@ assert.equal(setShortcutMode(directory, "hold"), "hold");
 assert.equal(getShortcutMode(directory), "hold");
 assert.equal(setShortcutMode(directory, "toggle"), "toggle");
 assert.throws(() => setShortcutMode(directory, "invalid"));
+assert.equal(getPastePermissionNoticeDismissed(directory), false);
+assert.equal(setPastePermissionNoticeDismissed(directory, true), true);
+assert.equal(getPastePermissionNoticeDismissed(directory), true);
+assert.equal(setPastePermissionNoticeDismissed(directory, false), false);
+assert.equal(getPastePermissionNoticeDismissed(directory), false);
+assert.throws(() => setPastePermissionNoticeDismissed(directory, "true"));
 
 fs.rmSync(directory, { recursive: true, force: true });
-console.log("App preferences: 22 checks passed.");
+console.log("App preferences: 28 checks passed.");

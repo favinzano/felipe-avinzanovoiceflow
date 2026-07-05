@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { resolveWin32HelperPath, createInputStrategy } = require('./input-helper.cjs');
+const { PASTE_FAILURE_REASON, resolveWin32HelperPath, createInputStrategy } = require('./input-helper.cjs');
 
 function fakeExecFile(responsesByArgs) {
   const calls = [];
@@ -58,8 +58,8 @@ async function run() {
   {
     const execFileImpl = fakeExecFile(() => { throw new Error('should not be called'); });
     const strategy = createInputStrategy({ platform: 'win32', helperPath: 'C:\\helper.exe', execFileImpl });
-    assert.equal(await strategy.paste(undefined), false);
-    assert.equal(await strategy.paste({}), false);
+    assert.deepEqual(await strategy.paste(undefined), { ok: false, reason: PASTE_FAILURE_REASON.NO_CAPTURE_TARGET });
+    assert.deepEqual(await strategy.paste({}), { ok: false, reason: PASTE_FAILURE_REASON.NO_CAPTURE_TARGET });
     assert.equal(execFileImpl.calls.length, 0);
   }
 
@@ -68,7 +68,7 @@ async function run() {
     const execFileImpl = fakeExecFile(() => ({ stdout: JSON.stringify({ ok: true }) }));
     const strategy = createInputStrategy({ platform: 'win32', helperPath: 'C:\\helper.exe', execFileImpl });
     const result = await strategy.paste({ handle: 42, focusHandle: 7, processId: 99 });
-    assert.equal(result, true);
+    assert.deepEqual(result, { ok: true });
     assert.deepEqual(execFileImpl.calls[0].args, ['paste', '--handle', '42', '--process', '99', '--focus', '7']);
   }
 
@@ -80,14 +80,16 @@ async function run() {
     assert.deepEqual(execFileImpl.calls[0].args, ['paste', '--handle', '42', '--process', '99']);
   }
 
-  // win32 strategy: a helper launch failure rejects the paste call.
+  // win32 strategy: a helper launch failure is reported as a helper-error reason, not a rejection.
   {
     const execFileImpl = fakeExecFile(() => ({ error: new Error('spawn failed'), stdout: '' }));
     const strategy = createInputStrategy({ platform: 'win32', helperPath: 'C:\\helper.exe', execFileImpl });
-    await assert.rejects(() => strategy.paste({ handle: 1, processId: 2 }), /spawn failed/);
+    const result = await strategy.paste({ handle: 1, processId: 2 });
+    assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.HELPER_ERROR });
   }
 
-  // darwin strategy: captureTarget is a no-op; paste presses Cmd+V via the native keyboard.
+  // darwin strategy: captureTarget is a no-op; paste presses Cmd+V via the native keyboard
+  // once the (mocked) accessibility check reports the app is authorized.
   {
     const calls = [];
     const loadNativeKeyboard = () => ({
@@ -97,16 +99,17 @@ async function run() {
       },
       Key: { LeftCmd: 'LeftCmd', LeftControl: 'LeftControl', V: 'V' }
     });
-    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard });
+    const loadMacPermissions = () => ({ getAuthStatus: () => 'authorized' });
+    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard, loadMacPermissions });
     assert.equal(await strategy.captureTarget(), undefined);
-    assert.equal(await strategy.paste(), true);
+    assert.deepEqual(await strategy.paste(), { ok: true });
     assert.deepEqual(calls, [
       ['press', 'LeftCmd', 'V'],
       ['release', 'LeftCmd', 'V']
     ]);
   }
 
-  // linux strategy: paste presses Ctrl+V via the native keyboard.
+  // linux strategy: paste presses Ctrl+V via the native keyboard (no accessibility gate on linux).
   {
     const calls = [];
     const loadNativeKeyboard = () => ({
@@ -117,30 +120,91 @@ async function run() {
       Key: { LeftCmd: 'LeftCmd', LeftControl: 'LeftControl', V: 'V' }
     });
     const strategy = createInputStrategy({ platform: 'linux', loadNativeKeyboard });
-    assert.deepEqual(await strategy.paste(), true);
+    assert.deepEqual(await strategy.paste(), { ok: true });
     assert.deepEqual(calls, [
       ['press', 'LeftControl', 'V'],
       ['release', 'LeftControl', 'V']
     ]);
   }
 
-  // native keyboard strategy: a native automation failure propagates to the caller.
+  // darwin strategy: when accessibility access has not been granted, paste reports
+  // permission-denied WITHOUT ever attempting the keystroke (macOS drops synthetic
+  // input silently rather than throwing, so we must not rely on a reactive catch here).
+  {
+    const loadNativeKeyboard = () => { throw new Error('should not be called'); };
+    const loadMacPermissions = () => ({ getAuthStatus: () => 'denied' });
+    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard, loadMacPermissions });
+    const result = await strategy.paste();
+    assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.PERMISSION_DENIED });
+  }
+
+  // darwin strategy: if the accessibility check itself is unavailable (module missing,
+  // unexpected shape, etc.), fall through and attempt the paste rather than blocking it.
+  {
+    const calls = [];
+    const loadNativeKeyboard = () => ({
+      keyboard: {
+        pressKey: (...keys) => { calls.push(['press', ...keys]); return Promise.resolve(); },
+        releaseKey: (...keys) => { calls.push(['release', ...keys]); return Promise.resolve(); }
+      },
+      Key: { LeftCmd: 'LeftCmd', V: 'V' }
+    });
+    const loadMacPermissions = () => { throw new Error('module not installed'); };
+    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard, loadMacPermissions });
+    assert.deepEqual(await strategy.paste(), { ok: true });
+    assert.equal(calls.length, 2);
+  }
+
+  // native keyboard strategy: an unexpected native automation failure on darwin (after
+  // passing/skipping the accessibility gate) is reported as automation-unavailable, not
+  // permission-denied, since darwin's permission signal is the proactive check above.
   {
     const loadNativeKeyboard = () => ({
       keyboard: {
-        pressKey: () => Promise.reject(new Error('accessibility permission denied')),
+        pressKey: () => Promise.reject(new Error('unexpected native failure')),
         releaseKey: () => Promise.resolve()
       },
       Key: { LeftCmd: 'LeftCmd', V: 'V' }
     });
-    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard });
-    await assert.rejects(() => strategy.paste(), /accessibility permission denied/);
+    const loadMacPermissions = () => ({ getAuthStatus: () => 'authorized' });
+    const strategy = createInputStrategy({ platform: 'darwin', loadNativeKeyboard, loadMacPermissions });
+    const result = await strategy.paste();
+    assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.AUTOMATION_UNAVAILABLE });
+  }
+
+  // linux strategy: a display/X11-flavored error is classified as permission-denied
+  // (best-effort heuristic; libnut-linux has no proactive permission API to check instead).
+  {
+    const loadNativeKeyboard = () => ({
+      keyboard: {
+        pressKey: () => Promise.reject(new Error('Cannot open display: (null)')),
+        releaseKey: () => Promise.resolve()
+      },
+      Key: { LeftControl: 'LeftControl', V: 'V' }
+    });
+    const strategy = createInputStrategy({ platform: 'linux', loadNativeKeyboard });
+    const result = await strategy.paste();
+    assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.PERMISSION_DENIED });
+  }
+
+  // linux strategy: any other native failure falls back to automation-unavailable.
+  {
+    const loadNativeKeyboard = () => ({
+      keyboard: {
+        pressKey: () => Promise.reject(new Error('libnut native call failed')),
+        releaseKey: () => Promise.resolve()
+      },
+      Key: { LeftControl: 'LeftControl', V: 'V' }
+    });
+    const strategy = createInputStrategy({ platform: 'linux', loadNativeKeyboard });
+    const result = await strategy.paste();
+    assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.AUTOMATION_UNAVAILABLE });
   }
 
   // Unsupported platforms fail fast instead of silently doing nothing.
   assert.throws(() => createInputStrategy({ platform: 'freebsd' }), /Unsupported platform/);
 
-  console.log('Input helper: 12 checks passed.');
+  console.log('Input helper: 26 checks passed.');
 }
 
 run().catch((error) => {
