@@ -2,6 +2,7 @@ const overlay = document.querySelector("#overlay");
 const signal = document.querySelector("#signal");
 const message = document.querySelector("#message");
 const timer = document.querySelector("#timer");
+const waveform = new VoiceflowWaveform(signal, { color: "#b66d45", lineWidth: 2, baseline: 0.16 });
 const overlayFallbackAPI = Object.freeze({
   brand: Object.freeze({
     displayName: "felipe avinzano VoiceFlow",
@@ -35,12 +36,10 @@ overlayAPI.onState((state) => {
   overlay.dataset.status = state.status;
   message.textContent = state.message || "";
   timer.textContent = state.timer || "";
+  if (state.status === "idle") waveform.hide();
+  else waveform.setStatus(state.status);
 });
 
-overlayAPI.onLevel((levels) => {
-  if (!Array.isArray(levels) || levels.length !== signal.children.length) return;
-  Array.from(signal.children).forEach((bar, index) => {
-    const level = Math.max(0, Math.min(1, Number(levels[index]) || 0));
-    bar.style.transform = `scaleY(${(0.17 + level * 0.83).toFixed(3)})`;
-  });
+overlayAPI.onLevel((amplitude) => {
+  waveform.setAmplitude(Number(amplitude) || 0);
 });

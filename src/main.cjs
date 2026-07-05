@@ -69,6 +69,15 @@ const isolatedTestMode = Boolean(isolatedPaths);
 const allowTestInstance = process.argv.includes("--allow-test-instance") || Boolean(selfTestPaths);
 
 app.setName(brand.displayName);
+if (process.platform === "win32") {
+  // Chromium's GPU allowlist can reject DirectX 12 devices on some Windows
+  // configurations (older drivers, hybrid GPUs); ignoring the blocklist here
+  // only affects Chromium's own GPU process checks. onnxruntime-node's
+  // DirectML execution provider initializes its own D3D12 device independently,
+  // but keeping both GPU paths unblocked avoids inconsistent behavior on the
+  // same machine.
+  app.commandLine.appendSwitch("ignore-gpu-blocklist");
+}
 const appDataPath = app.getPath("appData");
 const targetUserDataName = app.isPackaged ? brand.displayName : brand.developmentName;
 const targetUserDataPath = isolatedPaths?.userData || path.join(appDataPath, targetUserDataName);
@@ -495,9 +504,8 @@ function configureAutoUpdater() {
     }
     manualUpdateCheck = false;
   });
-  autoUpdater.on("update-downloaded", () => {
-    isQuitting = true;
-    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  autoUpdater.on("update-downloaded", (info) => {
+    sendToMainWindow("update:downloaded", { version: info?.version });
   });
   autoUpdater.on("error", (error) => {
     console.error("Update check failed:", error);
@@ -575,6 +583,13 @@ function normalizeInferenceDevice(device) {
   return device === "dml" && process.platform === "win32" ? "dml" : "cpu";
 }
 
+// DmlExecutionProvider is listed first so ONNX Runtime prefers the GPU for
+// each op; CPUExecutionProvider is listed second so ORT falls back to CPU
+// per-node (not per-session) when DirectML lacks a kernel for a given op.
+function executionProvidersFor(device) {
+  return device === "dml" ? ["dml", "cpu"] : ["cpu"];
+}
+
 async function getTranscriber(profileId, requestedDevice = "cpu") {
   const profile = resolveWhisperProfile(profileId);
   const device = normalizeInferenceDevice(requestedDevice);
@@ -619,7 +634,8 @@ async function getTranscriber(profileId, requestedDevice = "cpu") {
     try {
       nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
         ...pipelineOptions,
-        device
+        device,
+        session_options: { executionProviders: executionProvidersFor(device) }
       });
       lastDeviceFallback = undefined;
     } catch (error) {
@@ -629,7 +645,8 @@ async function getTranscriber(profileId, requestedDevice = "cpu") {
       lastDeviceFallback = true;
       nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
         ...pipelineOptions,
-        device: "cpu"
+        device: "cpu",
+        session_options: { executionProviders: executionProvidersFor("cpu") }
       });
     }
     transcriber = nextTranscriber;
@@ -1153,9 +1170,7 @@ ipcMain.handle("overlay:set-state", (_event, state) => {
 });
 ipcMain.on("overlay:set-level", (_event, level) => {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  if (!Array.isArray(level) || level.length !== 9) return;
-  const normalizedLevels = level.map((value) => Math.max(0, Math.min(1, Number(value) || 0)));
-  overlayWindow.webContents.send("overlay:level", normalizedLevels);
+  overlayWindow.webContents.send("overlay:level", Math.max(0, Math.min(1, Number(level) || 0)));
 });
 ipcMain.handle("taskbar:set-state", (_event, state) => {
   setRequestedTaskbarState(state?.status);
@@ -1231,6 +1246,12 @@ ipcMain.handle("preferences:set-autostart", (_event, enabled) => {
 
 ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:hide", () => mainWindow?.hide());
+
+ipcMain.handle("update:check", () => checkForUpdates(true));
+ipcMain.handle("update:install", () => {
+  isQuitting = true;
+  autoUpdater.quitAndInstall(false, true);
+});
 
 app.on("activate", () => {
   if (!bootstrapComplete) {

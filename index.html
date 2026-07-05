@@ -12,23 +12,22 @@
     <header class="titlebar">
       <div class="brand">
         <span class="incision-mark" aria-hidden="true"><i></i><i></i></span>
-        <span class="wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow"><span data-brand-base>felipe avinzano Voice</span><span class="brand-flow" data-brand-suffix>Flow</span></span>
+        <span class="wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow">felipe avinzano</span>
       </div>
-      <div class="titlebar-status"><span></span>Procesamiento local</div>
     </header>
 
     <main class="app-shell">
       <aside class="sidebar">
         <div class="side-brand">
           <span class="incision-mark large" aria-hidden="true"><i></i><i></i></span>
-          <div class="side-wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow"><strong data-brand-base>felipe avinzano Voice</strong><span class="brand-flow" data-brand-suffix>Flow</span></div>
+          <div class="side-wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow"><strong>Voice</strong><span class="brand-flow" data-brand-suffix>Flow</span></div>
         </div>
 
         <nav class="side-nav" aria-label="Navegación principal">
           <button class="nav-item active" data-panel="home"><span>01</span>Inicio</button>
-          <button class="nav-item" data-panel="dictionary"><span>02</span>Diccionario</button>
-          <button class="nav-item" data-panel="settings"><span>03</span>Configuración</button>
-          <button class="nav-item" data-panel="guide"><span>04</span>Guía rápida</button>
+          <button class="nav-item" data-panel="transcripts"><span>02</span>Últimas transcripciones</button>
+          <button class="nav-item" data-panel="dictionary"><span>03</span>Diccionario</button>
+          <button class="nav-item" data-panel="settings"><span>04</span>Configuración</button>
           <button class="nav-item" data-panel="about"><span>05</span>Acerca de</button>
           <button class="nav-item" data-panel="support"><span>06</span>Soporte</button>
         </nav>
@@ -36,6 +35,8 @@
         <div class="side-footer">
           <span class="footer-wordmark" data-brand-label data-brand-label-suffix=", versión 1.1.3" aria-label="felipe avinzano VoiceFlow, versión 1.1.3"><span data-brand-base>felipe avinzano Voice</span><span class="brand-flow" data-brand-suffix>Flow</span> · v1.1.3</span>
           <small>Privado. Local. Bajo tu control.</small>
+          <button class="footer-link" id="checkUpdatesButton" type="button">Buscar actualizaciones <span aria-hidden="true">↻</span></button>
+          <button class="footer-link" id="restartUpdateButton" type="button" hidden>Reiniciar para actualizar <span aria-hidden="true">↻</span></button>
         </div>
       </aside>
 
@@ -51,7 +52,7 @@
               <div class="card-label"><span>Captura directa</span><b id="timer">00:00</b></div>
               <div class="incision-backdrop"><i></i><i></i></div>
               <button class="record-button" id="recordButton" aria-label="Iniciar grabación"><span class="mic-icon"></span></button>
-              <div class="waveform" id="waveform" aria-hidden="true"></div>
+              <canvas class="waveform" id="waveform" aria-hidden="true"></canvas>
               <h2 id="headline">Listo para capturar tu idea.</h2>
               <p id="stateLabel">Haz clic o usa Ctrl + Shift + Espacio.</p>
               <div class="privacy-strip"><span>Audio local</span><span>Sin nube</span><span>Multilenguaje</span></div>
@@ -70,7 +71,12 @@
               </button>
             </aside>
           </div>
+        </div>
 
+        <div class="panel" id="transcriptsPanel">
+          <header class="page-header">
+            <div><p class="eyebrow">02 / Historial</p><h1>Cada palabra que dictaste,<br />en un solo lugar.</h1><p class="page-lead">Busca, exporta o borra tus transcripciones. Todo permanece en este equipo.</p></div>
+          </header>
           <section class="transcript-section">
             <div class="section-heading">
               <div><p class="eyebrow">Texto reciente</p><h2>Últimas transcripciones</h2></div>
@@ -82,7 +88,7 @@
 
         <div class="panel" id="dictionaryPanel">
           <header class="page-header">
-            <div><p class="eyebrow">02 / Precisión personal</p><h1>Palabras que deben<br />quedar bien.</h1><p class="page-lead">Añade nombres, marcas y términos técnicos. Se aplicarán después de cada transcripción.</p></div>
+            <div><p class="eyebrow">03 / Precisión personal</p><h1>Palabras que deben<br />quedar bien.</h1><p class="page-lead">Añade nombres, marcas y términos técnicos. Se aplicarán después de cada transcripción.</p></div>
           </header>
           <section class="feature-card dictionary-builder">
             <div><span class="card-kicker">Nuevo término</span><h2>Enseña una palabra al sistema.</h2><p>Escribe la forma exacta que quieres conservar.</p></div>
@@ -93,7 +99,7 @@
 
         <div class="panel" id="settingsPanel">
           <header class="page-header">
-            <div><p class="eyebrow">03 / Control del sistema</p><h1>Configura el flujo.<br />No la complejidad.</h1><p class="page-lead">Cada ajuste está conectado al comportamiento real de la aplicación.</p></div>
+            <div><p class="eyebrow">04 / Control del sistema</p><h1>Configura el flujo.<br />No la complejidad.</h1><p class="page-lead">Cada ajuste está conectado al comportamiento real de la aplicación.</p></div>
           </header>
           <div class="settings-groups">
             <section class="settings-group">
@@ -137,19 +143,6 @@
           </div>
         </div>
 
-        <div class="panel" id="guidePanel">
-          <header class="page-header">
-            <div><p class="eyebrow">04 / Guía rápida</p><h1>Un flujo sencillo.<br />Bien explicado.</h1><p class="page-lead">Recorre las funciones esenciales de felipe avinzano VoiceFlow.</p></div>
-          </header>
-          <section class="guide-card">
-            <div class="guide-visual" id="guideVisual"></div>
-            <footer class="guide-footer">
-              <div><span id="guideCount">1 / 6</span><strong id="guideTitle"></strong><small id="guideDescription"></small></div>
-              <div class="guide-controls"><button id="guidePrev">←</button><div id="guideDots"></div><button id="guideNext">Siguiente →</button></div>
-            </footer>
-          </section>
-        </div>
-
         <div class="panel" id="aboutPanel">
           <header class="page-header"><div><p class="eyebrow">05 / Producto</p><h1>Acerca de<br /><span class="about-wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow"><span data-brand-base>felipe avinzano Voice</span><span class="brand-flow" data-brand-suffix>Flow</span></span>.</h1></div></header>
           <section class="about-card">
@@ -163,7 +156,6 @@
           <div class="support-grid">
             <section class="feature-card"><span class="card-kicker">Diagnóstico</span><h2>¿Algo no funciona?</h2><p>Copia información técnica básica para compartirla con soporte.</p><button id="diagnosticsButton">Copiar diagnóstico</button></section>
             <section class="feature-card"><span class="card-kicker">Recuperación</span><h2>Reparar modelos locales.</h2><p>Elimina una descarga dañada y prepara una descarga limpia en la próxima transcripción.</p><button id="repairModelsButton">Reparar modelos</button></section>
-            <section class="feature-card"><span class="card-kicker">Primeros pasos</span><h2>Revisa la guía rápida.</h2><p>Confirma el micrófono, el idioma y el modo de entrega.</p><button class="go-guide">Abrir guía</button></section>
             <section class="feature-card"><span class="card-kicker">Rendimiento local</span><h2 id="performanceSummary">Esperando una transcripción.</h2><p id="performanceDetails">Aquí verás latencia, factor de tiempo real y memoria utilizada.</p></section>
             <section class="feature-card"><span class="card-kicker">Privacidad</span><h2>Tus palabras se quedan aquí.</h2><p>Audio, diccionario e historial permanecen en este equipo.</p></section>
           </div>
@@ -172,6 +164,7 @@
     </main>
 
     <div class="toast" id="toast"></div>
+    <script src="src/canvas-waveform.js"></script>
     <script src="dist/renderer.js"></script>
   </body>
 </html>

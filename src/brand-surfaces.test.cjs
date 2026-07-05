@@ -10,6 +10,7 @@ const preload = fs.readFileSync(path.join(__dirname, "preload.cjs"), "utf8");
 const overlayPreload = fs.readFileSync(path.join(__dirname, "overlay-preload.cjs"), "utf8");
 const renderer = fs.readFileSync(path.join(__dirname, "renderer.js"), "utf8");
 const overlayRenderer = fs.readFileSync(path.join(__dirname, "..", "overlay.js"), "utf8");
+const canvasWaveformSource = fs.readFileSync(path.join(__dirname, "canvas-waveform.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const overlayHtml = fs.readFileSync(path.join(__dirname, "..", "overlay.html"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "..", "styles.css"), "utf8");
@@ -86,23 +87,41 @@ function assertBrandCss(css, surface) {
   assert.ok(dmSerifRules.every((selector) => selector === '@font-face' || selector === '.brand-flow' || selector === '.hero-emphasis'), `${surface} reserves DM Serif Display for the approved Flow and hero accents`);
 }
 
-assertVisualWordmark(indexHtml, "wordmark", "titlebar wordmark");
-assertVisualWordmark(indexHtml, "side-wordmark", "sidebar wordmark");
+assert.match(
+  indexHtml,
+  /class=["']wordmark["'][^>]*data-brand-label[^>]*aria-label=["']felipe avinzano VoiceFlow["'][^>]*>felipe avinzano</,
+  "titlebar wordmark shows only the owner name, labeled with the full brand name"
+);
+assert.doesNotMatch(
+  indexHtml,
+  /class=["']wordmark["'][^>]*>[\s\S]{0,200}?data-brand-base/,
+  "titlebar wordmark no longer renders the dynamic base/suffix split"
+);
+assert.match(
+  indexHtml,
+  /class=["']side-wordmark["'][^>]*data-brand-label[^>]*aria-label=["']felipe avinzano VoiceFlow["'][^>]*>[\s\S]{0,40}?<strong>Voice<\/strong>[\s\S]{0,160}?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</,
+  "sidebar wordmark shows only VoiceFlow (a static Voice plus the dynamic Flow suffix), labeled with the full brand name"
+);
+assert.doesNotMatch(
+  indexHtml,
+  /class=["']side-wordmark["'][^>]*>[\s\S]{0,200}?data-brand-base/,
+  "sidebar wordmark no longer renders the felipe avinzano prefix"
+);
 assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
 assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.3["']/, "footer wordmark preserves its version in the accessible label");
 assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
 assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
 assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay HTML has a complete fallback title");
-const overlaySignalMarkup = overlayHtml.match(/<div class="signal"[^>]*>([\s\S]*?)<\/div>/)?.[1] || "";
-assert.equal((overlaySignalMarkup.match(/<i><\/i>/g) || []).length, 9, "overlay HTML renders the nine live audio bars before JavaScript runs");
+assert.match(overlayHtml, /<canvas class=["']signal["'][^>]*id=["']signal["'][^>]*><\/canvas>/, "overlay HTML renders the live waveform canvas");
+assert.doesNotMatch(overlayHtml, /<div class=["']signal["']/, "overlay HTML no longer renders the retired bar markup");
 assert.match(overlayRenderer, /overlayAPI\.onLevel\(/, "overlay waveform listens for live microphone levels");
 assert.doesNotMatch(overlayRenderer, /Math\.random/, "overlay waveform never substitutes random decorative motion for microphone levels");
+assert.match(overlayRenderer, /new VoiceflowWaveform\(signal,/, "overlay renders its waveform through the shared canvas module");
 assert.doesNotMatch(indexHtml, /NextStepAI Voice/, "active main-window copy no longer uses the legacy product name");
 assertBrandCss(styles, "main stylesheet");
 assertBrandCss(overlayStyles, "overlay stylesheet");
 assert.match(styles, /\.hero-emphasis\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif/, "approved hero accent retains DM Serif Display");
-assert.match(styles, /\.demo-overlay div\s*>\s*span\s*\{/, "guide overlay limits status-dot styling to the direct child");
 
 for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, "overlay renderer"]]) {
   assert.match(source, /function applyBrand\(brand\)/, `${surface} defines applyBrand`);
@@ -114,11 +133,9 @@ for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, 
   assert.match(source, /^applyBrand\(brand\);$/m, `${surface} invokes applyBrand before interaction`);
 }
 assert.match(renderer, /brand:\s*\{[\s\S]*displayName:\s*["']felipe avinzano VoiceFlow["'][\s\S]*baseName:\s*["']felipe avinzano Voice["'][\s\S]*suffix:\s*["']Flow["'][\s\S]*copper:\s*["']#B66D45["']/, "browser preview exposes the approved brand fallback");
-assert.match(renderer, /brandWordmarkMarkup\(\)/, "dynamic guide wordmarks use the split brand helper");
-assert.match(renderer, /data-brand-label[^>]*aria-label=["']\$\{brand\.displayName\}["'][^>]*>\$\{brandWordmarkMarkup\(\)\}/, "dynamic guide wordmarks expose an updatable accessible label");
-assert.equal((renderer.match(/data-brand-label[^>]*aria-label=["']\$\{brand\.displayName\}["'][^>]*>\$\{brandWordmarkMarkup\(\)\}/g) || []).length, 2, "each dynamic guide wordmark has labeled split targets");
+assert.doesNotMatch(renderer, /brandWordmarkMarkup/, "the retired guide's split-brand markup helper is not reintroduced");
 assert.match(renderer, /`\$\{brand\.displayName\} diagnostics`/, "diagnostics use the complete runtime display name");
-assert.doesNotMatch(renderer, /NextStepAI|nextstepai\.com/, "dynamic guide and diagnostics copy no longer exposes the legacy brand");
+assert.doesNotMatch(renderer, /NextStepAI|nextstepai\.com/, "diagnostics copy no longer exposes the legacy brand");
 assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{[\s\S]*brand:\s*Object\.freeze\(\{/, "overlay direct preview fallback and its brand are frozen");
 
 {
@@ -133,7 +150,16 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
     setAttribute(name, value) { this.attributes[name] = value; },
     getAttribute(name) { return this.attributes[name] ?? null; }
   });
-  for (const id of ["overlay", "signal", "message", "timer"]) elements.set(`#${id}`, makeElement());
+  const makeCanvasElement = () => {
+    const canvas = makeElement();
+    canvas.getBoundingClientRect = () => ({ width: 100, height: 22 });
+    canvas.getContext = () => ({
+      setTransform() {}, clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, stroke() {}
+    });
+    return canvas;
+  };
+  for (const id of ["overlay", "message", "timer"]) elements.set(`#${id}`, makeElement());
+  elements.set("#signal", makeCanvasElement());
   const baseTarget = makeElement();
   const suffixTarget = makeElement();
   const labelTarget = makeElement();
@@ -151,13 +177,19 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
     },
     createElement: makeElement
   };
-  assert.doesNotThrow(() => vm.runInNewContext(overlayRenderer, { document, window: {}, Math }), "overlay direct preview executes without preload");
+  const sandbox = { document, Math, ResizeObserver: class { observe() {} disconnect() {} } };
+  sandbox.window = sandbox;
+  sandbox.window.matchMedia = () => ({ matches: false });
+  vm.createContext(sandbox);
+  vm.runInContext(canvasWaveformSource, sandbox);
+  assert.doesNotThrow(() => vm.runInContext(overlayRenderer, sandbox), "overlay direct preview executes without preload");
   assert.equal(document.title, brand.displayName, "overlay direct preview applies the title");
   assert.equal(baseTarget.textContent, brand.baseName, "overlay direct preview applies the base name");
   assert.equal(suffixTarget.textContent, brand.suffix, "overlay direct preview applies only the suffix");
   assert.equal(labelTarget.attributes["aria-label"], brand.displayName, "overlay direct preview applies the accessible label");
   assert.equal(suffixedLabelTarget.attributes["aria-label"], `${brand.displayName}, versión 1.1.3`, "runtime brand application preserves an accessible label suffix");
-  assert.equal(elements.get("#signal").children.length, 0, "overlay renderer does not duplicate the signal bars supplied by HTML");
+  assert.equal(elements.get("#signal").children.length, 0, "overlay renderer never appends child bars to the waveform canvas");
+  assert.equal(typeof sandbox.window.VoiceflowWaveform, "function", "canvas waveform module attaches itself to window");
 }
 
 assert.equal(brand.displayName, "felipe avinzano VoiceFlow");

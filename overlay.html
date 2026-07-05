@@ -13,14 +13,13 @@
         <strong data-brand-label aria-label="felipe avinzano VoiceFlow"><span data-brand-base>felipe avinzano Voice</span><span class="brand-flow" data-brand-suffix>Flow</span></strong>
         <span class="status-dot"></span>
       </div>
-      <div class="signal" id="signal" aria-hidden="true">
-        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-      </div>
+      <canvas class="signal" id="signal" aria-hidden="true"></canvas>
       <div class="message-row">
         <span id="message">Escuchando. Presiona el atajo para convertir.</span>
         <b id="timer">00:00</b>
       </div>
     </main>
+    <script src="src/canvas-waveform.js"></script>
     <script src="overlay.js"></script>
   </body>
 </html>

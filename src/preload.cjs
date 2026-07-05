@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld("voiceAPI", {
   setShortcutMode: (mode) => ipcRenderer.invoke("preferences:set-shortcut-mode", mode),
   minimize: () => ipcRenderer.invoke("window:minimize"),
   hide: () => ipcRenderer.invoke("window:hide"),
+  checkForUpdates: () => ipcRenderer.invoke("update:check"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
   onShortcutToggle: (callback) => ipcRenderer.on("shortcut:toggle", callback),
   onShortcutPressed: (callback) => ipcRenderer.on("shortcut:pressed", callback),
   onShortcutReleased: (callback) => ipcRenderer.on("shortcut:released", callback),
@@ -51,5 +53,6 @@ contextBridge.exposeInMainWorld("voiceAPI", {
   onShortcutError: (callback) => ipcRenderer.on("shortcut:error", callback),
   onModelProgress: (callback) => ipcRenderer.on("model:progress", (_event, progress) => callback(progress)),
   onNavigate: (callback) => ipcRenderer.on("app:navigate", (_event, panel) => callback(panel)),
-  onPasteLast: (callback) => ipcRenderer.on("tray:paste-last", callback)
+  onPasteLast: (callback) => ipcRenderer.on("tray:paste-last", callback),
+  onUpdateDownloaded: (callback) => ipcRenderer.on("update:downloaded", (_event, info) => callback(info))
 });

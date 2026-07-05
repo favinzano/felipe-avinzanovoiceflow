@@ -61,10 +61,6 @@ function applyBrand(brand) {
   });
 }
 
-function brandWordmarkMarkup() {
-  return '<span data-brand-base></span><span class="brand-flow" data-brand-suffix></span>';
-}
-
 applyBrand(brand);
 
 if (!voiceAPI.runtime.preserveLegacyStorage) {
@@ -110,7 +106,6 @@ let processing = false;
 let timerInterval;
 let startedAt;
 let triggerSource = "button";
-let guideIndex = 0;
 let overlayHideTimer;
 let autoStopPending = false;
 let voiceActivityDetector;
@@ -151,30 +146,14 @@ const elements = {
   shortcutMode: $("#shortcutMode"),
   recordShortcut: $("#recordShortcut"),
   reprocessShortcut: $("#reprocessShortcut"),
-  guideVisual: $("#guideVisual"),
-  guideCount: $("#guideCount"),
-  guideTitle: $("#guideTitle"),
-  guideDescription: $("#guideDescription"),
-  guideDots: $("#guideDots"),
-  guidePrev: $("#guidePrev"),
-  guideNext: $("#guideNext"),
   diagnosticsButton: $("#diagnosticsButton"),
   repairModelsButton: $("#repairModelsButton"),
   performanceSummary: $("#performanceSummary"),
   performanceDetails: $("#performanceDetails"),
+  checkUpdatesButton: $("#checkUpdatesButton"),
+  restartUpdateButton: $("#restartUpdateButton"),
   toast: $("#toast")
 };
-
-const guideSlides = [
-  { tag: "Captura flotante", title: "Habla sin salir de tu trabajo", description: "La señal flotante aparece sin mover el cursor de la aplicación activa.", visual: `<div class="demo-overlay"><div><span></span><strong data-brand-label aria-label="${brand.displayName}">${brandWordmarkMarkup()}</strong></div><i></i><i></i><i></i><i></i><i></i><i></i><p>Escuchando. Presiona el atajo para convertir.</p></div><div class="demo-shortcut"><kbd>Ctrl</kbd><b>+</b><kbd>Shift</kbd><b>+</b><kbd>Espacio</kbd></div>` },
-  { tag: "Privacidad", title: "Tu audio se procesa localmente", description: "El motor Whisper corre dentro de tu equipo.", visual: '<div class="demo-incision"><i></i><i></i></div><p>Sin subir grabaciones a la nube.</p>' },
-  { tag: "Entrega", title: "Elige cómo llega el texto", description: "Pega, copia o conserva el resultado en la aplicación.", visual: '<div class="demo-options"><span>Pegar + copiar</span><span>Solo copiar</span><span>Solo aplicación</span></div>' },
-  { tag: "Precisión", title: "Construye tu diccionario", description: "Protege nombres, marcas y términos técnicos.", visual: `<div class="demo-dictionary"><span><i class="demo-term" data-brand-label aria-label="${brand.displayName}">${brandWordmarkMarkup()}</i><b>Aprendido</b></span><span>Avinzano <b>Aprendido</b></span><span>Whisper <b>Aprendido</b></span></div>` },
-  { tag: "Claridad", title: "Limpia el mensaje", description: "Reduce muletillas y normaliza espacios automáticamente.", visual: '<div class="demo-clean"><s>eh, bueno,</s><strong> necesitamos avanzar con la propuesta.</strong></div>' },
-  { tag: "Texto inteligente", title: "Dicta correos y direcciones web", description: "Expresiones habladas como arroba, punto com y slash se convierten.", visual: '<div class="demo-urls"><span>equipo arroba felipeavinzano punto com</span><b>→</b><strong>equipo@felipeavinzano.com</strong></div>' },
-  { tag: "Formato", title: "Da forma mientras hablas", description: "Usa nueva línea y punto y aparte para estructurar el resultado.", visual: '<div class="demo-result"><span>Mensaje / con estructura</span><p>Hola María, espero que estés muy bien.<br><br>Revisemos la propuesta el martes.<br><br>Saludos.</p></div>' },
-  { tag: "Resultado", title: "Una idea lista para avanzar", description: "Tu texto queda disponible, copiable y organizado.", visual: '<div class="demo-result"><span>Resultado / listo</span><p>Agendemos la revisión para el martes a las diez.</p></div>' }
-];
 
 function saveSettings() {
   persistState();
@@ -254,29 +233,18 @@ function setStatus(status, detail) {
     processing: "Convirtiendo voz en el siguiente paso."
   };
   elements.headline.textContent = headlines[status];
+  if (status === "recording") mainWaveform.setStatus("recording");
+  else mainWaveform.hide();
 }
 
-function createWaveform() {
-  for (let index = 0; index < 9; index += 1) {
-    const bar = document.createElement("i");
-    elements.waveform.appendChild(bar);
-  }
-}
+const mainWaveform = new VoiceflowWaveform(elements.waveform, { color: "#b66d45", lineWidth: 2, baseline: 0.16 });
 
-let smoothedWaveformLevels = Array(9).fill(0);
+let smoothedAmplitude = 0;
 
-function renderVoiceLevel(rms = 0, rawLevels) {
-  const samples = Array.isArray(rawLevels) && rawLevels.length === 9
-    ? rawLevels
-    : Array(9).fill(rms);
-  smoothedWaveformLevels = samples.map((sample, index) => {
-    const normalized = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, Number(sample) || 0) / 0.08)));
-    return smoothedWaveformLevels[index] * 0.7 + normalized * 0.3;
-  });
-  Array.from(elements.waveform.children).forEach((bar, index) => {
-    bar.style.transform = `scaleY(${(0.17 + smoothedWaveformLevels[index] * 0.83).toFixed(3)})`;
-  });
-  return smoothedWaveformLevels;
+function computeAmplitude(rms = 0) {
+  const normalized = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, Number(rms) || 0) / 0.08)));
+  smoothedAmplitude = smoothedAmplitude * 0.7 + normalized * 0.3;
+  return smoothedAmplitude;
 }
 
 async function releaseAudioCapture() {
@@ -291,8 +259,8 @@ async function releaseAudioCapture() {
   captureNode = undefined;
   silentGain = undefined;
   voiceActivityDetector = undefined;
-  smoothedWaveformLevels = Array(9).fill(0);
-  renderVoiceLevel(0);
+  smoothedAmplitude = 0;
+  mainWaveform.hide();
 }
 
 async function updateMicrophones() {
@@ -339,7 +307,7 @@ async function beginRecording(source = "button") {
         recordedPcmChunks.push(event.data);
         return;
       }
-      if (event.data?.type === "level") handleVoiceLevel(event.data.rms, event.data.levels);
+      if (event.data?.type === "level") handleVoiceLevel(event.data.rms);
     };
     audioSource.connect(captureNode);
     captureNode.connect(silentGain);
@@ -369,9 +337,11 @@ async function beginRecording(source = "button") {
   }
 }
 
-function handleVoiceLevel(rms, levels) {
+function handleVoiceLevel(rms) {
   if (!recording) return;
-  voiceAPI.overlayLevel(renderVoiceLevel(rms, levels));
+  const amplitude = computeAmplitude(rms);
+  mainWaveform.setAmplitude(amplitude);
+  voiceAPI.overlayLevel(amplitude);
   if (!settings.autoStopEnabled || autoStopPending) return;
   if (!voiceActivityDetector?.update(rms)) return;
   autoStopPending = true;
@@ -558,18 +528,6 @@ function renderDictionary() {
   });
 }
 
-function renderGuide() {
-  const slide = guideSlides[guideIndex];
-  elements.guideVisual.innerHTML = `<span class="guide-tag">${slide.tag}</span><h2>${slide.title}</h2><div class="guide-demo">${slide.visual}</div>`;
-  applyBrand(brand);
-  elements.guideCount.textContent = `${guideIndex + 1} / ${guideSlides.length}`;
-  elements.guideTitle.textContent = slide.title;
-  elements.guideDescription.textContent = slide.description;
-  elements.guideDots.innerHTML = guideSlides.map((_, index) => `<i class="${index === guideIndex ? "active" : ""}"></i>`).join("");
-  elements.guidePrev.disabled = guideIndex === 0;
-  elements.guideNext.textContent = guideIndex === guideSlides.length - 1 ? "Listo" : "Siguiente →";
-}
-
 async function hydrateSettings() {
   const profile = resolveWhisperProfile(settings.whisperProfile);
   elements.language.value = settings.language;
@@ -600,8 +558,13 @@ function toggleRecording(source = "button") {
 }
 
 $$(".nav-item").forEach((button) => button.addEventListener("click", () => switchPanel(button.dataset.panel)));
-$$(".go-guide").forEach((button) => button.addEventListener("click", () => switchPanel("guide")));
 elements.recordButton.addEventListener("click", () => toggleRecording("button"));
+elements.checkUpdatesButton.addEventListener("click", () => {
+  voiceAPI.checkForUpdates();
+});
+elements.restartUpdateButton.addEventListener("click", () => {
+  voiceAPI.installUpdate();
+});
 elements.reprocessButton.addEventListener("click", () => processAudio(lastAudio, "button"));
 armTwoStepConfirm(elements.clearHistory, "¿Confirmar borrado?", () => {
   history = [];
@@ -668,15 +631,6 @@ elements.microphone.addEventListener("change", () => {
   }
   showToast("Preferencia guardada.");
 }));
-elements.guidePrev.addEventListener("click", () => {
-  guideIndex = Math.max(0, guideIndex - 1);
-  renderGuide();
-});
-elements.guideNext.addEventListener("click", () => {
-  if (guideIndex === guideSlides.length - 1) switchPanel("home");
-  else guideIndex += 1;
-  renderGuide();
-});
 elements.diagnosticsButton.addEventListener("click", async () => {
   try {
     const diagnostics = await voiceAPI.diagnostics();
@@ -806,6 +760,10 @@ voiceAPI.onShortcutReleased(() => {
 voiceAPI.onReprocess(() => processAudio(lastAudio, "shortcut"));
 voiceAPI.onShortcutError(() => showToast("Un acceso directo ya está siendo usado por otra aplicación."));
 voiceAPI.onNavigate((panel) => switchPanel(panel));
+voiceAPI.onUpdateDownloaded(() => {
+  elements.restartUpdateButton.hidden = false;
+  showToast("Actualización descargada. Reinicia para instalarla.");
+});
 voiceAPI.onPasteLast(async () => {
   if (!history.length) {
     showToast("Aún no hay transcripciones para pegar.");
@@ -834,11 +792,9 @@ async function initializeApp() {
   persistedMicrophone = persisted.microphone;
   clearMigratedLegacyStorage(localStorage, voiceAPI.runtime.preserveLegacyStorage);
 
-  createWaveform();
   await hydrateSettings();
   renderHistory();
   renderDictionary();
-  renderGuide();
   await updateMicrophones();
   setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");
 }
