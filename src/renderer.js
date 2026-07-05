@@ -21,6 +21,14 @@ const voiceAPI = window.voiceAPI || {
   getState: async () => ({ settings: {}, history: [], dictionary: [], microphone: "" }),
   migrateLegacyState: async (state) => state,
   writeState: async (state) => state,
+  transcriptions: {
+    getAll: async () => [],
+    add: async (texto) => ({ id: crypto.randomUUID(), texto, fecha: new Date().toISOString() }),
+    delete: async () => {},
+    clear: async () => {},
+    trim: async () => {},
+    migrateLegacy: async () => {}
+  },
   transcribe: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
   overlay: async () => {},
   sendAudioData: () => {},
@@ -91,10 +99,9 @@ const legacyState = {
   microphone: localStorage.getItem("voice-microphone") || ""
 };
 let settings = { ...defaults, ...legacyState.settings };
-let history = legacyState.history;
+let history = [];
 let dictionary = legacyState.dictionary;
 let persistedMicrophone = legacyState.microphone;
-history = history.map((item) => ({ ...item, id: item.id || crypto.randomUUID() }));
 let mediaStream;
 let audioContext;
 let audioSource;
@@ -163,7 +170,7 @@ function saveSettings() {
 function persistState() {
   const snapshot = {
     settings: { ...settings },
-    history: history.map((item) => ({ ...item })),
+    history: [],
     dictionary: [...dictionary],
     microphone: persistedMicrophone
   };
@@ -382,7 +389,7 @@ async function processAudio(audio, source = "button") {
     if (!text.trim()) throw new Error("No detectamos palabras claras en la grabación.");
     elements.modelBadge.classList.remove("loading", "error");
     elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(result.device || "cpu").toUpperCase()}`;
-    addHistory(text);
+    await addHistory(text);
     if (result.metrics) renderPerformance(result.metrics);
     const delivery = await deliverText(text, source);
     finishOverlay(
@@ -458,11 +465,15 @@ async function deliverText(text, source) {
   return { pasted: false };
 }
 
-function addHistory(text) {
-  history.unshift({ id: crypto.randomUUID(), text, at: new Date().toISOString() });
-  history = history.slice(0, Number(settings.historyLimit));
-  persistState();
+async function refreshHistory() {
+  const rows = await voiceAPI.transcriptions.getAll(Number(settings.historyLimit));
+  history = rows.map((row) => ({ id: row.id, text: row.texto, at: row.fecha }));
   renderHistory();
+}
+
+async function addHistory(text) {
+  await voiceAPI.transcriptions.add(text, Number(settings.historyLimit));
+  await refreshHistory();
 }
 
 function renderHistory() {
@@ -490,10 +501,9 @@ function renderHistory() {
       await voiceAPI.copy(item.text);
       showToast("Transcripción copiada.");
     });
-    article.querySelector(".history-delete").addEventListener("click", () => {
-      history = history.filter((entry) => entry.id !== item.id);
-      persistState();
-      renderHistory();
+    article.querySelector(".history-delete").addEventListener("click", async () => {
+      await voiceAPI.transcriptions.delete(item.id);
+      await refreshHistory();
     });
     elements.historyList.appendChild(article);
   });
@@ -557,10 +567,9 @@ elements.restartUpdateButton.addEventListener("click", () => {
   voiceAPI.installUpdate();
 });
 elements.reprocessButton.addEventListener("click", () => processAudio(lastAudio, "button"));
-armTwoStepConfirm(elements.clearHistory, "¿Confirmar borrado?", () => {
-  history = [];
-  persistState();
-  renderHistory();
+armTwoStepConfirm(elements.clearHistory, "¿Confirmar borrado?", async () => {
+  await voiceAPI.transcriptions.clear();
+  await refreshHistory();
   showToast("Historial borrado.");
 });
 elements.historySearch.addEventListener("input", renderHistory);
@@ -606,7 +615,7 @@ elements.microphone.addEventListener("change", () => {
   ["historyLimit", elements.historyLimit],
   ["autoStopEnabled", elements.autoStopEnabled],
   ["silenceTimeoutMs", elements.silenceTimeout]
-].forEach(([key, control]) => control.addEventListener("change", () => {
+].forEach(([key, control]) => control.addEventListener("change", async () => {
   settings[key] = control.type === "checkbox" ? control.checked : control.value;
   if (key === "historyLimit" || key === "silenceTimeoutMs") settings[key] = Number(settings[key]);
   saveSettings();
@@ -616,9 +625,8 @@ elements.microphone.addEventListener("change", () => {
     elements.modelBadge.innerHTML = `<span></span>${profile.label} seleccionado`;
   }
   if (key === "historyLimit") {
-    history = history.slice(0, settings.historyLimit);
-    persistState();
-    renderHistory();
+    await voiceAPI.transcriptions.trim(settings.historyLimit);
+    await refreshHistory();
   }
   showToast("Preferencia guardada.");
 }));
@@ -778,13 +786,13 @@ async function initializeApp() {
   await voiceAPI.migrateLegacyState(legacyState);
   const persisted = await voiceAPI.getState();
   settings = { ...defaults, ...persisted.settings };
-  history = persisted.history.map((item) => ({ ...item, id: item.id || crypto.randomUUID() }));
   dictionary = persisted.dictionary;
   persistedMicrophone = persisted.microphone;
   clearMigratedLegacyStorage(localStorage, voiceAPI.runtime.preserveLegacyStorage);
+  await voiceAPI.transcriptions.migrateLegacy(persisted.history);
 
   await hydrateSettings();
-  renderHistory();
+  await refreshHistory();
   renderDictionary();
   await updateMicrophones();
   setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");

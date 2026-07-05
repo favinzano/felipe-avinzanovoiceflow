@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const brand = require("./brand-config.cjs");
 const packageJson = require("../package.json");
 const main = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
+const inputHelper = fs.readFileSync(path.join(__dirname, "input-helper.cjs"), "utf8");
 const preload = fs.readFileSync(path.join(__dirname, "preload.cjs"), "utf8");
 const overlayPreload = fs.readFileSync(path.join(__dirname, "overlay-preload.cjs"), "utf8");
 const renderer = fs.readFileSync(path.join(__dirname, "renderer.js"), "utf8");
@@ -50,7 +51,8 @@ assert.ok(main.indexOf('app.setPath("userData", targetUserDataPath)') < main.ind
 assert.match(main, /tray\.setToolTip\(brand\.displayName\)/, "tray tooltip uses the display name");
 assert.match(main, /title:\s*brand\.displayName/, "native window title uses the display name");
 assert.match(main, /`\$\{brand\.slug\}-History-\$\{new Date\(\)\.toISOString\(\)\.slice\(0, 10\)\}\.json`/, "history export uses the branded slug");
-assert.match(main, /["']native["'],\s*["']win32-x64["'],\s*brand\.helperExecutable/, "native helper path uses the brand contract");
+assert.match(inputHelper, /["']native["'],\s*["']win32-x64["'],\s*helperExecutableName/, "native helper path shape is resolved in the input-helper module");
+assert.match(main, /helperExecutableName:\s*brand\.helperExecutable/, "native helper path is wired to the brand contract");
 assert.match(main, /brandMigration:\s*safeBrandMigrationDiagnostics\(\)/, "diagnostics expose a sanitized migration summary");
 assert.match(main, /const preserveLegacyStorage\s*=\s*!isolatedPaths\s*&&\s*Boolean\(/, "only a real first legacy transition preserves Chromium storage");
 assert.match(main, /additionalArguments:\s*\[[\s\S]{0,180}`--voiceflow-preserve-legacy-storage=\$\{preserveLegacyStorage\s*\?\s*['"]1['"]\s*:\s*['"]0['"]\}`[\s\S]{0,30}\]/, "main window passes the transition flag through an appended renderer argument");

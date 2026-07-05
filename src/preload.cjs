@@ -27,6 +27,14 @@ contextBridge.exposeInMainWorld("voiceAPI", {
   getState: () => ipcRenderer.invoke("state:get"),
   migrateLegacyState: (state) => ipcRenderer.invoke("state:migrate-legacy", state),
   writeState: (state) => ipcRenderer.invoke("state:write", state),
+  transcriptions: {
+    getAll: (limit) => ipcRenderer.invoke("transcriptions:get-all", limit),
+    add: (texto, limit) => ipcRenderer.invoke("transcriptions:add", texto, limit),
+    delete: (id) => ipcRenderer.invoke("transcriptions:delete", id),
+    clear: () => ipcRenderer.invoke("transcriptions:clear"),
+    trim: (limit) => ipcRenderer.invoke("transcriptions:trim", limit),
+    migrateLegacy: (entries) => ipcRenderer.invoke("transcriptions:migrate-legacy", entries)
+  },
   transcribe: (audio, language, profile, device) => ipcRenderer.invoke("transcription:run", audio, language, profile, device),
   overlay: (state) => ipcRenderer.invoke("overlay:set-state", state),
   sendAudioData: (frequencyData) => ipcRenderer.send("audio-data-update", frequencyData),

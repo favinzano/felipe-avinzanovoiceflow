@@ -3,7 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const fs = require("fs/promises");
 const fsSync = require("node:fs");
 const path = require("path");
-const { execFile, spawn } = require("child_process");
+const { spawn } = require("child_process");
 const brand = require("./brand-config.cjs");
 const { migrateBrandData } = require("./brand-migration.cjs");
 const { prepareBrandElectronPaths } = require("./brand-session-path.cjs");
@@ -21,6 +21,7 @@ const {
   setShortcutMode,
   setShortcuts
 } = require("./app-preferences.cjs");
+const { createInputStrategy, resolveWin32HelperPath } = require("./input-helper.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { loadModelWithRetry } = require("./model-recovery.cjs");
 const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
@@ -30,6 +31,16 @@ const {
   ensureModelCache,
   getModelCacheDir
 } = require("./model-storage.cjs");
+const {
+  clearTranscriptions,
+  closeDb,
+  deleteTranscription,
+  getAllTranscriptions,
+  initDb,
+  insertTranscription,
+  migrateLegacyHistory,
+  trimTranscriptions
+} = require("./db.cjs");
 
 let mainWindow;
 let overlayWindow;
@@ -819,47 +830,29 @@ function updateOverlay(state) {
 }
 
 function pasteHelperPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "native", "win32-x64", brand.helperExecutable)
-    : path.join(__dirname, "..", "native", "win32-x64", brand.helperExecutable);
-}
-
-function runPasteHelper(args) {
-  return new Promise((resolve, reject) => {
-    execFile(pasteHelperPath(), args, { windowsHide: true }, (error, stdout) => {
-      let result;
-      try {
-        result = JSON.parse(stdout.trim());
-      } catch {
-        result = { ok: false, error: error?.message || "invalid_helper_response" };
-      }
-      if (error || !result.ok) reject(new Error(result.error || error?.message || "invalid_helper_response"));
-      else resolve(result);
-    });
+  return resolveWin32HelperPath({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appRoot: path.join(__dirname, ".."),
+    helperExecutableName: brand.helperExecutable
   });
 }
 
+const inputStrategy = createInputStrategy({ helperPath: pasteHelperPath() });
+
 async function capturePasteTarget() {
-  if (process.platform !== "win32") return;
-  const result = await runPasteHelper(["capture"]);
-  pasteTarget = { handle: result.handle, focusHandle: result.focusHandle, processId: result.processId };
+  pasteTarget = await inputStrategy.captureTarget();
 }
 
 async function pasteIntoActiveApp(text) {
   clipboard.writeText(text);
 
-  if (process.platform !== "win32") return true;
-
-  if (!pasteTarget?.handle) return false;
   const target = pasteTarget;
   pasteTarget = undefined;
   try {
-    const args = ["paste", "--handle", String(target.handle), "--process", String(target.processId)];
-    if (target.focusHandle) args.push("--focus", String(target.focusHandle));
-    await runPasteHelper(args);
-    return true;
+    return await inputStrategy.paste(target);
   } catch (error) {
-    console.error("Native paste helper could not inject Ctrl+V:", error);
+    console.error("Native input helper could not inject paste:", error);
     return false;
   }
 }
@@ -1004,6 +997,7 @@ app.whenReady().then(async () => {
   activeUserDataPath = migrationUsesTarget
     ? targetUserDataPath
     : brandMigration.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
+  initDb(activeUserDataPath);
 
   try {
     if (await runShortcutSelfTest()) {
@@ -1104,6 +1098,17 @@ ipcMain.handle("history:export", async (_event, entries) => {
 ipcMain.handle("state:get", () => readState(activeUserDataPath));
 ipcMain.handle("state:migrate-legacy", (_event, legacyState) => migrateLegacyState(activeUserDataPath, legacyState));
 ipcMain.handle("state:write", (_event, state) => writeState(activeUserDataPath, state));
+
+ipcMain.handle("transcriptions:get-all", (_event, limit) => getAllTranscriptions(limit));
+ipcMain.handle("transcriptions:add", (_event, texto, limit) => {
+  const row = insertTranscription(texto);
+  trimTranscriptions(limit);
+  return row;
+});
+ipcMain.handle("transcriptions:delete", (_event, id) => deleteTranscription(id));
+ipcMain.handle("transcriptions:clear", () => clearTranscriptions());
+ipcMain.handle("transcriptions:trim", (_event, limit) => trimTranscriptions(limit));
+ipcMain.handle("transcriptions:migrate-legacy", (_event, entries) => migrateLegacyHistory(entries));
 
 ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
   try {
@@ -1269,6 +1274,7 @@ app.on("will-quit", () => {
   clearTaskbarPulse();
   stopShortcutMonitors();
   globalShortcut.unregisterAll();
+  closeDb();
 });
 
 app.on("window-all-closed", () => {

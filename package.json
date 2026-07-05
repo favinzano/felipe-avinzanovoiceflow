@@ -1,115 +1,122 @@
 {
-    "name":  "felipe-avinzanovoiceflow",
-    "version":  "1.1.3",
-    "description":  "felipe avinzano VoiceFlow - dictado privado y local para Windows",
-    "author":  "Felipe Avinzano",
-    "license":  "SEE LICENSE IN LICENSE.md",
-    "main":  "src/main.cjs",
-    "scripts":  {
-                    "build":  "esbuild ./src/renderer.js --bundle --platform=browser --format=iife --outfile=./dist/renderer.js",
-                    "build:native":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1",
-                    "build:icons":  "node scripts/build-icons.cjs",
-                    "start":  "electron .",
-                    "dev":  "npm run build \u0026\u0026 electron .",
-                    "test":  "npm run build \u0026\u0026 node scripts/verify-brand-references.test.cjs \u0026\u0026 node scripts/verify-brand-references.cjs \u0026\u0026 node scripts/release-brand.test.cjs \u0026\u0026 node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/overlay-preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/brand-config.test.cjs \u0026\u0026 node src/brand-migration.test.cjs \u0026\u0026 node src/brand-session-path.test.cjs \u0026\u0026 node src/brand-surfaces.test.cjs \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs",
-                    "test:production":  "node scripts/verify-brand-references.test.cjs \u0026\u0026 node scripts/verify-brand-references.cjs \u0026\u0026 node scripts/release-brand.test.cjs \u0026\u0026 node --check src/main.cjs \u0026\u0026 node --check src/preload.cjs \u0026\u0026 node --check src/overlay-preload.cjs \u0026\u0026 node --check src/pcm-capture-worklet.js \u0026\u0026 node src/brand-config.test.cjs \u0026\u0026 node src/brand-migration.test.cjs \u0026\u0026 node src/brand-session-path.test.cjs \u0026\u0026 node src/brand-surfaces.test.cjs \u0026\u0026 node src/text-cleanup.test.cjs \u0026\u0026 node src/audio-quality.test.cjs \u0026\u0026 node src/voice-activity.test.cjs \u0026\u0026 node src/benchmark-utils.test.cjs \u0026\u0026 node src/whisper-profiles.test.cjs \u0026\u0026 node src/model-storage.test.cjs \u0026\u0026 node src/local-state.test.cjs \u0026\u0026 node src/app-preferences.test.cjs \u0026\u0026 node src/data-migrations.test.cjs \u0026\u0026 node src/transcription-smoke.test.cjs",
-                    "test:models":  "node src/whisper-models.smoke.cjs",
-                    "benchmark:models":  "node scripts/benchmark-models.cjs",
-                    "pre-release":  "node scripts/compress-natives.cjs",
-                    "release:win":  "npm run build \u0026\u0026 npm run build:native \u0026\u0026 npm run build:icons \u0026\u0026 npm run pre-release \u0026\u0026 electron-builder --win nsis",
-                    "release:signed":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
-                    "release:dir":  "npm run build \u0026\u0026 npm run build:native \u0026\u0026 npm run pre-release \u0026\u0026 electron-builder --dir --win",
-                    "release:notes":  "node scripts/generate-release-notes.cjs",
-                    "release:verify":  "node scripts/verify-release.cjs",
-                    "release:verify-acceptance":  "node scripts/verify-acceptance.cjs",
-                    "release:test-models":  "node scripts/verify-packaged-models.cjs",
-                    "release:test-installer":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer.ps1",
-                    "release:test-tray":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-tray.ps1",
-                    "release:verify-signature":  "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-signature.ps1"
-                },
-    "dependencies":  {
-                         "@huggingface/transformers":  "^3.7.3",
-                         "electron-updater":  "^6.8.9"
-                     },
-    "devDependencies":  {
-                            "electron":  "^39.2.7",
-                            "electron-builder":  "^26.15.0",
-                            "esbuild":  "^0.27.0"
-                        },
-    "build":  {
-                  "appId":  "com.felipeavinzano.voiceflow",
-                  "productName":  "felipe avinzano VoiceFlow",
-                  "publish":  [
-                                  {
-                                      "provider":  "github",
-                                      "owner":  "favinzano",
-                                      "repo":  "felipe-avinzanovoiceflow",
-                                      "releaseType":  "release"
-                                  }
-                              ],
-                  "asar":  true,
-                  "asarUnpack":  [
-                                     "node_modules/onnxruntime-node/bin/napi-v3/win32/x64/**/*"
-                                 ],
-                  "directories":  {
-                                      "output":  "release"
-                                  },
-                  "files":  [
-                                "dist/**/*",
-                                "src/**/*",
-                                "assets/app-icon*",
-                                "assets/incision-mark.svg",
-                                "assets/fonts/DMSerifDisplay-*.ttf",
-                                "assets/fonts/Geist-*.woff2",
-                                "index.html",
-                                "styles.css",
-                                "overlay.html",
-                                "overlay.css",
-                                "overlay.js",
-                                "package.json",
-                                "LICENSE.md",
-                                "PRIVACY.md",
-                                "TERMS.md",
-                                "THIRD_PARTY_NOTICES.md",
-                                "!src/**/*.test.cjs",
-                                "!src/**/*.smoke.cjs",
-                                "!node_modules/**/.cache/**/*",
-                                "!node_modules/@huggingface/transformers/.cache/**/*",
-                                "!**/*.onnx",
-                                "!**/*.onnx_data",
-                                "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
-                                "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
-                                "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*"
-                            ],
-                  "extraResources":  [
-                                         {
-                                             "from":  "native/win32-x64",
-                                             "to":  "native/win32-x64",
-                                             "filter":  [
-                                                            "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
-                                                        ]
-                                         }
-                                     ],
-                  "win":  {
-                              "icon":  "assets/app-icon.ico",
-                              "target":  [
-                                             {
-                                                 "target":  "nsis",
-                                                 "arch":  [
-                                                              "x64"
-                                                          ]
-                                             }
-                                         ],
-                              "artifactName":  "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}"
-                          },
-                  "nsis":  {
-                               "oneClick":  false,
-                               "allowToChangeInstallationDirectory":  true,
-                               "createDesktopShortcut":  true,
-                               "createStartMenuShortcut":  true,
-                               "shortcutName":  "felipe avinzano VoiceFlow",
-                               "deleteAppDataOnUninstall":  false,
-                               "license":  "LICENSE.md"
-                           }
-              }
+    "name": "felipe-avinzanovoiceflow",
+    "version": "1.1.3",
+    "description": "felipe avinzano VoiceFlow - dictado privado y local para Windows",
+    "author": "Felipe Avinzano",
+    "license": "SEE LICENSE IN LICENSE.md",
+    "main": "src/main.cjs",
+    "scripts": {
+        "build": "esbuild ./src/renderer.js --bundle --platform=browser --format=iife --outfile=./dist/renderer.js",
+        "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1",
+        "postinstall": "electron-rebuild -f -w better-sqlite3",
+        "build:icons": "node scripts/build-icons.cjs",
+        "start": "electron .",
+        "dev": "npm run build && electron .",
+        "test": "npm run build && node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs",
+        "test:production": "node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs && node src/transcription-smoke.test.cjs",
+        "test:models": "node src/whisper-models.smoke.cjs",
+        "benchmark:models": "node scripts/benchmark-models.cjs",
+        "pre-release": "node scripts/compress-natives.cjs",
+        "release:win": "npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis",
+        "release:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
+        "release:dir": "npm run build && npm run build:native && npm run pre-release && electron-builder --dir --win",
+        "release:notes": "node scripts/generate-release-notes.cjs",
+        "release:verify": "node scripts/verify-release.cjs",
+        "release:verify-acceptance": "node scripts/verify-acceptance.cjs",
+        "release:test-models": "node scripts/verify-packaged-models.cjs",
+        "release:test-installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer.ps1",
+        "release:test-tray": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-tray.ps1",
+        "release:verify-signature": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-signature.ps1"
+    },
+    "dependencies": {
+        "@huggingface/transformers": "^3.7.3",
+        "@nut-tree-fork/nut-js": "^4.2.6",
+        "better-sqlite3": "^12.11.1",
+        "electron-updater": "^6.8.9"
+    },
+    "devDependencies": {
+        "@electron/rebuild": "^4.1.0",
+        "electron": "^39.2.7",
+        "electron-builder": "^26.15.0",
+        "esbuild": "^0.27.0"
+    },
+    "build": {
+        "appId": "com.felipeavinzano.voiceflow",
+        "productName": "felipe avinzano VoiceFlow",
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "favinzano",
+                "repo": "felipe-avinzanovoiceflow",
+                "releaseType": "release"
+            }
+        ],
+        "asar": true,
+        "asarUnpack": [
+            "node_modules/onnxruntime-node/bin/napi-v3/win32/x64/**/*",
+            "node_modules/better-sqlite3/build/Release/**/*",
+            "node_modules/@nut-tree-fork/libnut-darwin/build/Release/**/*",
+            "node_modules/@nut-tree-fork/libnut-linux/build/Release/**/*"
+        ],
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "dist/**/*",
+            "src/**/*",
+            "assets/app-icon*",
+            "assets/incision-mark.svg",
+            "assets/fonts/DMSerifDisplay-*.ttf",
+            "assets/fonts/Geist-*.woff2",
+            "index.html",
+            "styles.css",
+            "overlay.html",
+            "overlay.css",
+            "overlay.js",
+            "package.json",
+            "LICENSE.md",
+            "PRIVACY.md",
+            "TERMS.md",
+            "THIRD_PARTY_NOTICES.md",
+            "!src/**/*.test.cjs",
+            "!src/**/*.smoke.cjs",
+            "!node_modules/**/.cache/**/*",
+            "!node_modules/@huggingface/transformers/.cache/**/*",
+            "!**/*.onnx",
+            "!**/*.onnx_data",
+            "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
+            "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
+            "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "native/win32-x64",
+                "to": "native/win32-x64",
+                "filter": [
+                    "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
+                ]
+            }
+        ],
+        "win": {
+            "icon": "assets/app-icon.ico",
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "artifactName": "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true,
+            "shortcutName": "felipe avinzano VoiceFlow",
+            "deleteAppDataOnUninstall": false,
+            "license": "LICENSE.md"
+        }
+    }
 }
