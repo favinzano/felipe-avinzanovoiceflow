@@ -82,8 +82,39 @@ async function loadPipelineWithRetry(pipeline, task, model, options) {
   }
 }
 
+// Superset of MODEL_LOCK_ERROR_PATTERN: also covers plain network transients
+// (rate limiting, timeouts, mid-download disconnects). Used by the outer,
+// fresh-cache-directory retry layer below.
+const TRANSIENT_ERROR_PATTERN = /\b429\b|ETIMEDOUT|ECONNRESET|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT|fetch failed|terminated|system error number 13|errcode\s*=\s*32\b|being used by another process|out of bounds or can not be read in full/i;
+
+function isTransientError(error) {
+  if (TRANSIENT_ERROR_PATTERN.test(String(error?.message ?? error))) return true;
+  if (error?.cause) return isTransientError(error.cause);
+  return false;
+}
+
+// If an antivirus lock interrupts a download mid-write, the partial file can
+// remain in the cache directory and survive an in-place retry (transformers.js
+// only checks that the file exists, not that it is complete) -- ONNX Runtime
+// then fails with an out-of-bounds tensor read on the truncated external data
+// file. Retrying with a brand-new cache directory forces a genuine
+// re-download instead of reusing a possibly-truncated one.
+async function withFreshCacheRetry(attempt, { maxAttempts = 3, retryDelayMs = 15000 } = {}) {
+  for (let index = 1; index <= maxAttempts; index += 1) {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (index === maxAttempts || !isTransientError(error)) throw error;
+      console.warn(`Intento ${index} fallo por un error transitorio, reintentando en ${retryDelayMs * index}ms: ${error.message}`);
+      await delay(retryDelayMs * index);
+    }
+  }
+}
+
 module.exports = {
   createIsolatedModelCache,
   verifyModelDownloads,
-  loadPipelineWithRetry
+  loadPipelineWithRetry,
+  isTransientError,
+  withFreshCacheRetry
 };

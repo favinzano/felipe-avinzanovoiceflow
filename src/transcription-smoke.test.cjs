@@ -1,24 +1,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const { cleanTranscription } = require("./text-cleanup.cjs");
-const { createIsolatedModelCache, verifyModelDownloads, loadPipelineWithRetry } = require("./model-smoke-utils.cjs");
+const { createIsolatedModelCache, verifyModelDownloads, loadPipelineWithRetry, withFreshCacheRetry } = require("./model-smoke-utils.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-
-const MAX_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 15000;
-// CI runners occasionally hit transient Hugging Face / filesystem errors while
-// downloading the model (rate limiting, connect timeouts, antivirus file locks).
-const TRANSIENT_ERROR_PATTERN = /\b429\b|ETIMEDOUT|ECONNRESET|ECONNREFUSED|UND_ERR_CONNECT_TIMEOUT|fetch failed|terminated|system error number 13|errcode\s*=\s*32\b|being used by another process/i;
-
-function isTransientError(error) {
-  if (TRANSIENT_ERROR_PATTERN.test(String(error?.message ?? error))) return true;
-  if (error?.cause) return isTransientError(error.cause);
-  return false;
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function attemptSmokeTest() {
   const cacheDir = await createIsolatedModelCache("voiceflow-transcription-smoke-");
@@ -65,20 +49,7 @@ async function attemptSmokeTest() {
   }
 }
 
-async function run() {
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    try {
-      await attemptSmokeTest();
-      return;
-    } catch (error) {
-      if (attempt === MAX_ATTEMPTS || !isTransientError(error)) throw error;
-      console.warn(`Intento ${attempt} fallo por un error transitorio, reintentando en ${RETRY_DELAY_MS * attempt}ms: ${error.message}`);
-      await delay(RETRY_DELAY_MS * attempt);
-    }
-  }
-}
-
-run().catch((error) => {
+withFreshCacheRetry(attemptSmokeTest).catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
