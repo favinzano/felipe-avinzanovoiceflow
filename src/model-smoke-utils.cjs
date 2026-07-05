@@ -63,13 +63,11 @@ const MODEL_LOCK_ERROR_PATTERN = /system error number 13|errcode\s*=\s*32\b|bein
 const MODEL_LOCK_MAX_ATTEMPTS = 8;
 const MODEL_LOCK_RETRY_DELAY_MS = 5000;
 
-// Windows antivirus/Defender can briefly lock freshly downloaded .onnx files.
-// This surfaces as two distinct error shapes depending on which layer trips
-// the lock: transformers.js's own file read fails with "system error number
-// 13", while onnxruntime-node's native tensor deserializer (hit on large
-// external-data files like the Large v3 Turbo encoder) fails with a Win32
-// "errcode = 32 - ... being used by another process" message instead. Retry
-// the load in place before falling back to a full re-download attempt.
+// Loading a freshly-downloaded model on GitHub's Windows runners can fail
+// with either "system error number 13" or a Win32 "errcode = 32 - ... being
+// used by another process" -- consistent with a brief antivirus/Defender
+// lock on the just-written .onnx file. Retry the load in place before
+// falling back to a full re-download attempt.
 async function loadPipelineWithRetry(pipeline, task, model, options) {
   for (let attempt = 1; attempt <= MODEL_LOCK_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -93,12 +91,29 @@ function isTransientError(error) {
   return false;
 }
 
-// If an antivirus lock interrupts a download mid-write, the partial file can
-// remain in the cache directory and survive an in-place retry (transformers.js
-// only checks that the file exists, not that it is complete) -- ONNX Runtime
-// then fails with an out-of-bounds tensor read on the truncated external data
-// file. Retrying with a brand-new cache directory forces a genuine
-// re-download instead of reusing a possibly-truncated one.
+// KNOWN LIMITATION (not fully fixed by this retry, documented for whoever
+// investigates Windows Release Check failing at `npm run test:models` next):
+// on GitHub's Windows runners, loading Whisper Large v3 Turbo's ~2.5GB
+// encoder occasionally fails partway through @huggingface/transformers'
+// Node.js file-cache resolution. The symptom shape-shifts across runs --
+// an antivirus-style lock error, an out-of-bounds tensor read against a
+// too-short external-data file, or a generic "Unable to get model file path
+// or buffer." from getModelFile() -- because it's the same underlying gap:
+// transformers.js's `cache.put()` (streaming the download to disk) can
+// resolve before the immediately-following `cache.match()` reliably sees
+// the completed file, and its Node/return_path code path has no fallback to
+// the buffer it already holds when that re-check comes back empty. This is
+// a known upstream issue, not something introduced by this project:
+// https://github.com/huggingface/transformers.js/issues/1279
+// It has not reproduced locally or in the packaged app's own model-loading
+// self-test, only on these CI runners with this specific large file.
+// Retrying with a brand-new cache directory (forcing a genuine re-download)
+// clears the *truncated-file-reused-across-a-retry* variant of this, but
+// does not guarantee clearing the upstream race itself -- an occasional
+// failure here should be treated as a known flake (re-run the job) rather
+// than a regression, until either transformers.js fixes #1279 upstream or
+// this project moves off `return_path`/the built-in FileCache for large
+// external-data models.
 async function withFreshCacheRetry(attempt, { maxAttempts = 3, retryDelayMs = 15000 } = {}) {
   for (let index = 1; index <= maxAttempts; index += 1) {
     try {

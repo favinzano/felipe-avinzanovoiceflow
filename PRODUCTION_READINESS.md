@@ -34,6 +34,10 @@ Estado actual: release candidate `1.0.0` funcional para Windows x64. Todavía no
 3. Probar en Windows 11 y en equipos adicionales con poca memoria y CPU más lenta. Windows 10 x64 ya fue validado en el entorno actual.
 4. Validar instalación sobre una versión anterior y rollback cuando exista un segundo instalador versionado.
 
+## Problemas Conocidos
+
+- **`Windows Release Check` puede fallar intermitentemente en `npm run test:models`** al cargar el encoder de Whisper Large v3 Turbo (~2.5 GB) en los runners de Windows de GitHub. La causa raíz es un problema conocido y no resuelto en `@huggingface/transformers` ([issue #1279](https://github.com/huggingface/transformers.js/issues/1279)): su resolución de caché de archivos en Node.js puede fallar entre `cache.put()` y la siguiente `cache.match()`, sin volver al buffer que ya tiene en memoria. El síntoma cambia de forma entre ejecuciones (bloqueo tipo antivirus, lectura de tensor fuera de límites, o "Unable to get model file path or buffer."), pero es la misma causa. No se ha reproducido localmente ni en la autoprueba de carga de modelos de la aplicación empaquetada. Ver los comentarios en `src/model-smoke-utils.cjs` (`withFreshCacheRetry`) antes de seguir investigando. Mitigación actual: reintentos con directorio de caché nuevo en cada intento; una falla aislada aquí debe tratarse como intermitencia conocida (reejecutar el job), no como regresión.
+
 ## Comandos De Validación
 
 ```powershell
