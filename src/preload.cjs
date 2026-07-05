@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld("voiceAPI", {
   writeState: (state) => ipcRenderer.invoke("state:write", state),
   transcribe: (audio, language, profile, device) => ipcRenderer.invoke("transcription:run", audio, language, profile, device),
   overlay: (state) => ipcRenderer.invoke("overlay:set-state", state),
-  overlayLevel: (level) => ipcRenderer.send("overlay:set-level", level),
+  sendAudioData: (frequencyData) => ipcRenderer.send("audio-data-update", frequencyData),
   taskbar: (state) => ipcRenderer.invoke("taskbar:set-state", state),
   diagnostics: () => ipcRenderer.invoke("app:diagnostics"),
   clearModels: () => ipcRenderer.invoke("models:clear"),

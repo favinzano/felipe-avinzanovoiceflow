@@ -5,6 +5,7 @@ const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
 const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
+const { initializeVisualizer } = require("./audio-visualizer.js");
 
 const voiceAPI = window.voiceAPI || {
   brand: {
@@ -22,7 +23,7 @@ const voiceAPI = window.voiceAPI || {
   writeState: async (state) => state,
   transcribe: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
   overlay: async () => {},
-  overlayLevel: () => {},
+  sendAudioData: () => {},
   taskbar: async () => {},
   diagnostics: async () => ({ platform: "browser", version: "preview" }),
   clearModels: async () => true,
@@ -233,21 +234,13 @@ function setStatus(status, detail) {
     processing: "Convirtiendo voz en el siguiente paso."
   };
   elements.headline.textContent = headlines[status];
-  if (status === "recording") mainWaveform.setStatus("recording");
-  else mainWaveform.hide();
 }
 
-const mainWaveform = new VoiceflowWaveform(elements.waveform, { color: "#b66d45", lineWidth: 2, baseline: 0.16 });
-
-let smoothedAmplitude = 0;
-
-function computeAmplitude(rms = 0) {
-  const normalized = Math.max(0, Math.min(1, Math.sqrt(Math.max(0, Number(rms) || 0) / 0.08)));
-  smoothedAmplitude = smoothedAmplitude * 0.7 + normalized * 0.3;
-  return smoothedAmplitude;
-}
+let stopMainVisualizer;
 
 async function releaseAudioCapture() {
+  stopMainVisualizer?.();
+  stopMainVisualizer = undefined;
   audioSource?.disconnect();
   captureNode?.disconnect();
   silentGain?.disconnect();
@@ -259,8 +252,6 @@ async function releaseAudioCapture() {
   captureNode = undefined;
   silentGain = undefined;
   voiceActivityDetector = undefined;
-  smoothedAmplitude = 0;
-  mainWaveform.hide();
 }
 
 async function updateMicrophones() {
@@ -302,6 +293,9 @@ async function beginRecording(source = "button") {
     captureNode = new AudioWorkletNode(audioContext, "voiceflow-pcm-capture");
     silentGain = audioContext.createGain();
     silentGain.gain.value = 0;
+    stopMainVisualizer = initializeVisualizer(elements.waveform, audioContext, audioSource, {
+      onFrequencyData: (frequencyData) => voiceAPI.sendAudioData(frequencyData)
+    });
     captureNode.port.onmessage = (event) => {
       if (event.data instanceof Float32Array && event.data.length) {
         recordedPcmChunks.push(event.data);
@@ -339,9 +333,6 @@ async function beginRecording(source = "button") {
 
 function handleVoiceLevel(rms) {
   if (!recording) return;
-  const amplitude = computeAmplitude(rms);
-  mainWaveform.setAmplitude(amplitude);
-  voiceAPI.overlayLevel(amplitude);
   if (!settings.autoStopEnabled || autoStopPending) return;
   if (!voiceActivityDetector?.update(rms)) return;
   autoStopPending = true;

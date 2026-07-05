@@ -2,7 +2,7 @@
 @font-face { font-family: Geist; src: url("assets/fonts/Geist-Italic-Variable.woff2") format("woff2"); font-style: italic; font-weight: 100 900; }
 @font-face { font-family: "DM Serif Display"; src: url("assets/fonts/DMSerifDisplay-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; }
 
-:root { --copper: #b66d45; }
+:root { --copper: #b66d45; --blue: #2c5f8a; --blue-light: #83a9c8; }
 
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; font-family: Geist, sans-serif; }

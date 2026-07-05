@@ -1168,9 +1168,9 @@ ipcMain.handle("overlay:set-state", (_event, state) => {
   if (state.status === "idle" && activeShortcutMode === "toggle") shortcutRecording = false;
   return true;
 });
-ipcMain.on("overlay:set-level", (_event, level) => {
+ipcMain.on("audio-data-update", (_event, frequencyData) => {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  overlayWindow.webContents.send("overlay:level", Math.max(0, Math.min(1, Number(level) || 0)));
+  overlayWindow.webContents.send("audio-data-update", frequencyData);
 });
 ipcMain.handle("taskbar:set-state", (_event, state) => {
   setRequestedTaskbarState(state?.status);

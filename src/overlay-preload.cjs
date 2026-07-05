@@ -16,5 +16,5 @@ const rendererBrand = Object.freeze({
 contextBridge.exposeInMainWorld("overlayAPI", {
   brand: rendererBrand,
   onState: (callback) => ipcRenderer.on("overlay:state", (_event, state) => callback(state)),
-  onLevel: (callback) => ipcRenderer.on("overlay:level", (_event, level) => callback(level))
+  onAudioData: (callback) => ipcRenderer.on("audio-data-update", (_event, frequencyData) => callback(frequencyData))
 });
