@@ -8,10 +8,12 @@ const { WHISPER_PROFILES } = require("./whisper-profiles.cjs");
 // (e.g. an antivirus-truncated download) can't persist into the retry.
 async function testProfile(profile) {
   const cacheDir = await createIsolatedModelCache();
+  console.log(`${profile.shortLabel}: usando directorio de caché aislado ${cacheDir}`);
   const { pipeline, env } = await import("@huggingface/transformers");
   env.cacheDir = cacheDir;
   env.allowLocalModels = true;
   env.allowRemoteModels = true;
+  console.log(`${profile.shortLabel}: env.cacheDir confirmado en ${env.cacheDir}`);
 
   let transcriber;
   try {

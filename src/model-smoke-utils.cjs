@@ -60,8 +60,8 @@ function delay(ms) {
 }
 
 const MODEL_LOCK_ERROR_PATTERN = /system error number 13|errcode\s*=\s*32\b|being used by another process/i;
-const MODEL_LOCK_MAX_ATTEMPTS = 5;
-const MODEL_LOCK_RETRY_DELAY_MS = 3000;
+const MODEL_LOCK_MAX_ATTEMPTS = 8;
+const MODEL_LOCK_RETRY_DELAY_MS = 5000;
 
 // Windows antivirus/Defender can briefly lock freshly downloaded .onnx files.
 // This surfaces as two distinct error shapes depending on which layer trips
