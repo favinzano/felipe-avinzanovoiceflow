@@ -74,6 +74,18 @@ function setShortcuts(userDataPath, shortcuts) {
   return preferences.shortcuts;
 }
 
+function getPastePermissionNoticeDismissed(userDataPath) {
+  return readPreferences(userDataPath).pastePermissionNoticeDismissed === true;
+}
+
+function setPastePermissionNoticeDismissed(userDataPath, dismissed) {
+  if (typeof dismissed !== "boolean") throw new Error("Paste permission notice dismissed flag must be a boolean.");
+  const preferences = readPreferences(userDataPath);
+  preferences.pastePermissionNoticeDismissed = dismissed;
+  writePreferences(userDataPath, preferences);
+  return dismissed;
+}
+
 function getShortcutMode(userDataPath) {
   const mode = readPreferences(userDataPath).shortcutMode;
   return SHORTCUT_MODES.has(mode) ? mode : "toggle";
@@ -91,11 +103,13 @@ module.exports = {
   DEFAULT_SHORTCUTS,
   getAutoStartEnabled,
   getCloseBehavior,
+  getPastePermissionNoticeDismissed,
   getShortcutMode,
   getShortcuts,
   hasAutoStartPreference,
   setAutoStartEnabled,
   setCloseBehavior,
+  setPastePermissionNoticeDismissed,
   setShortcutMode,
   setShortcuts
 };

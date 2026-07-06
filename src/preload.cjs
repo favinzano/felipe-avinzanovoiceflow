@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("voiceAPI", {
   runtime: rendererRuntime,
   copy: (text) => ipcRenderer.invoke("clipboard:write", text),
   paste: (text) => ipcRenderer.invoke("clipboard:paste", text),
+  notifyPastePermissionDenied: () => ipcRenderer.invoke("paste:notify-permission-denied"),
   exportHistory: (entries) => ipcRenderer.invoke("history:export", entries),
   getState: () => ipcRenderer.invoke("state:get"),
   migrateLegacyState: (state) => ipcRenderer.invoke("state:migrate-legacy", state),
