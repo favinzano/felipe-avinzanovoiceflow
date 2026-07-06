@@ -187,6 +187,24 @@ async function run() {
     assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.PERMISSION_DENIED });
   }
 
+  // linux strategy: generic permission/EACCES-flavored errors are also classified as
+  // permission-denied, not just the display/X11 wording (e.g. a denied automation grant
+  // under a hardened Wayland session shouldn't be lumped in with "no backend at all").
+  {
+    for (const message of ['Permission denied', 'access denied by security policy', 'operation not authorized', 'EACCES']) {
+      const loadNativeKeyboard = () => ({
+        keyboard: {
+          pressKey: () => Promise.reject(new Error(message)),
+          releaseKey: () => Promise.resolve()
+        },
+        Key: { LeftControl: 'LeftControl', V: 'V' }
+      });
+      const strategy = createInputStrategy({ platform: 'linux', loadNativeKeyboard });
+      const result = await strategy.paste();
+      assert.deepEqual(result, { ok: false, reason: PASTE_FAILURE_REASON.PERMISSION_DENIED });
+    }
+  }
+
   // linux strategy: any other native failure falls back to automation-unavailable.
   {
     const loadNativeKeyboard = () => ({
@@ -204,7 +222,7 @@ async function run() {
   // Unsupported platforms fail fast instead of silently doing nothing.
   assert.throws(() => createInputStrategy({ platform: 'freebsd' }), /Unsupported platform/);
 
-  console.log('Input helper: 26 checks passed.');
+  console.log('Input helper: 30 checks passed.');
 }
 
 run().catch((error) => {
