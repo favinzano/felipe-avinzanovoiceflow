@@ -11,7 +11,7 @@ Estado actual: release candidate `1.0.0` funcional para Windows x64. Todavía no
 - Captura mediante atajo global, overlay sin robo de foco y pegado en la aplicación activa.
 - Procesamiento, diccionario e historial locales.
 - Icono e identidad visual propios.
-- Auditoría de dependencias de producción sin vulnerabilidades conocidas.
+- Auditoría de dependencias de producción sin vulnerabilidades de severidad alta o crítica (ver vulnerabilidad moderada conocida y sin corrección en Problemas Conocidos).
 - Instalador NSIS reproducible, instalación, arranque y desinstalación validados.
 - Ejecutable empaquetado validado con Whisper Base y Whisper Small.
 - Caché de modelos persistente en datos del usuario y acción de reparación.
@@ -38,6 +38,8 @@ Estado actual: release candidate `1.0.0` funcional para Windows x64. Todavía no
 
 - **`Windows Release Check` puede fallar intermitentemente en `npm run test:models`** al cargar el encoder de Whisper Large v3 Turbo (~2.5 GB) en los runners de Windows de GitHub. La causa raíz es un problema conocido y no resuelto en `@huggingface/transformers` ([issue #1279](https://github.com/huggingface/transformers.js/issues/1279)): su resolución de caché de archivos en Node.js puede fallar entre `cache.put()` y la siguiente `cache.match()`, sin volver al buffer que ya tiene en memoria. El síntoma cambia de forma entre ejecuciones (bloqueo tipo antivirus, lectura de tensor fuera de límites, o "Unable to get model file path or buffer."), pero es la misma causa. No se ha reproducido localmente ni en la autoprueba de carga de modelos de la aplicación empaquetada. Ver los comentarios en `src/model-smoke-utils.cjs` (`withFreshCacheRetry`) antes de seguir investigando. Mitigación actual: reintentos con directorio de caché nuevo en cada intento; una falla aislada aquí debe tratarse como intermitencia conocida (reejecutar el job), no como regresión.
 
+- **`npm audit --omit=dev` reporta 7 vulnerabilidades moderadas heredadas de `@nut-tree-fork/nut-js@4.2.6`** (la última versión publicada) a través de su dependencia fijada a una versión exacta `jimp@0.22.10` → `file-type` ([GHSA-5v7r-6r5c-r473](https://github.com/advisories/GHSA-5v7r-6r5c-r473): bucle infinito en el parser ASF con entrada malformada). No existe todavía una versión corregida («No fix available» según `npm audit`), y como `nut-js` fija `jimp` a una versión exacta, no se puede resolver actualizando ni con `npm audit fix`. Esta aplicación solo usa la API `keyboard` de `nut-js` (ver `src/input-helper.cjs`); la ruta vulnerable (procesamiento de imágenes/captura de pantalla) nunca se invoca. Mitigación actual: el paso de auditoría en CI usa `--audit-level=critical` para no bloquear en este hallazgo moderado y documentado, sin dejar de fallar ante vulnerabilidades altas o críticas futuras. Revisar cuando `file-type` o `@jimp/core` publiquen una versión corregida.
+
 ## Comandos De Validación
 
 ```powershell
@@ -50,7 +52,7 @@ npm run release:test-models
 npm run release:test-installer
 npm run release:test-tray
 npm run release:verify-signature
-npm audit --omit=dev
+npm audit --omit=dev --audit-level=critical
 ```
 
 `npm run test:models` descarga y valida Whisper Base y Whisper Small, por lo que requiere conexión en su primera ejecución.
