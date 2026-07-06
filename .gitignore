@@ -16,3 +16,11 @@ benchmarks/results/
 npm-debug.log*
 *.log
 release-notes-draft.md
+
+# AI tooling scaffolding/config — not part of the app, kept local-only
+.agents/
+.claude/skills/
+.codex/
+.github/hooks/
+.github/skills/
+.impeccable/
