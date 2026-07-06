@@ -89,7 +89,11 @@
             "!**/*.onnx_data",
             "!.tmp/**/*",
             "!tools/**/*",
-            "!native/**/*"
+            "!native/**/*",
+            "!.claude/**/*",
+            "!.agents/**/*",
+            "!.codex/**/*",
+            "!.impeccable/**/*"
         ],
         "win": {
             "icon": "assets/app-icon.ico",
