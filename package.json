@@ -18,6 +18,7 @@
         "benchmark:models": "node scripts/benchmark-models.cjs",
         "pre-release": "node scripts/compress-natives.cjs",
         "release:win": "npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis",
+        "release:mac": "npm run build && npm run build:icons && electron-builder --mac",
         "release:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
         "release:dir": "npm run build && npm run build:native && npm run pre-release && electron-builder --dir --win",
         "release:notes": "node scripts/generate-release-notes.cjs",
@@ -54,9 +55,11 @@
         "asar": true,
         "asarUnpack": [
             "node_modules/onnxruntime-node/bin/napi-v3/win32/x64/**/*",
+            "node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
             "node_modules/better-sqlite3/build/Release/**/*",
             "node_modules/@nut-tree-fork/libnut-darwin/build/Release/**/*",
-            "node_modules/@nut-tree-fork/libnut-linux/build/Release/**/*"
+            "node_modules/@nut-tree-fork/libnut-linux/build/Release/**/*",
+            "node_modules/@nut-tree-fork/node-mac-permissions/build/Release/**/*"
         ],
         "directories": {
             "output": "release"
@@ -83,19 +86,7 @@
             "!node_modules/**/.cache/**/*",
             "!node_modules/@huggingface/transformers/.cache/**/*",
             "!**/*.onnx",
-            "!**/*.onnx_data",
-            "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
-            "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
-            "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*"
-        ],
-        "extraResources": [
-            {
-                "from": "native/win32-x64",
-                "to": "native/win32-x64",
-                "filter": [
-                    "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
-                ]
-            }
+            "!**/*.onnx_data"
         ],
         "win": {
             "icon": "assets/app-icon.ico",
@@ -107,7 +98,41 @@
                     ]
                 }
             ],
-            "artifactName": "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}"
+            "artifactName": "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}",
+            "files": [
+                "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
+                "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
+                "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*"
+            ],
+            "extraResources": [
+                {
+                    "from": "native/win32-x64",
+                    "to": "native/win32-x64",
+                    "filter": [
+                        "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
+                    ]
+                }
+            ]
+        },
+        "mac": {
+            "target": [
+                {
+                    "target": "dmg",
+                    "arch": [
+                        "arm64"
+                    ]
+                }
+            ],
+            "category": "public.app-category.productivity",
+            "artifactName": "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}",
+            "hardenedRuntime": false,
+            "gatekeeperAssess": false,
+            "files": [
+                "!node_modules/onnxruntime-node/bin/napi-v3/win32/**/*",
+                "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
+                "!node_modules/@nut-tree-fork/libnut-win32/**/*",
+                "!node_modules/@nut-tree-fork/libnut-linux/**/*"
+            ]
         },
         "nsis": {
             "oneClick": false,
