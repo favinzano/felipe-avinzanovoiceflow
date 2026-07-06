@@ -21,8 +21,9 @@ assert.equal(lifecycleTest.status, 0, lifecycleTest.stderr);
 
 assert.equal(fs.readFileSync(path.join(root, 'package.json'), 'utf8')[0], '{', 'package.json must not contain a UTF-8 BOM');
 assert.equal(normalizeAsarPath('\\src\\brand-config.json'), 'src/brand-config.json');
-assert.equal(isPathContained('C:\\temp\\smoke', 'C:\\temp\\smoke\\userData\\models'), true);
-assert.equal(isPathContained('C:\\temp\\smoke', 'C:\\AppData\\models'), false);
+const containmentRoot = path.join(os.tmpdir(), 'smoke');
+assert.equal(isPathContained(containmentRoot, path.join(containmentRoot, 'userData', 'models')), true);
+assert.equal(isPathContained(containmentRoot, path.join(os.tmpdir(), 'AppData', 'models')), false);
 assert.deepEqual(resolveProfiles(['--profile=fast']), ['fast']);
 assert.deepEqual(resolveProfiles([]), ['fast', 'accurate']);
 assert.throws(() => resolveProfiles(['--profile=turbo']), /Unsupported packaged model profile/);
@@ -60,9 +61,11 @@ for (const name of powershellScripts) {
   const source = fs.readFileSync(path.join(__dirname, name), 'utf8');
   assert.match(source, /brand-config\.json/, `${name} must load canonical brand config`);
   assert.match(source, /ConvertFrom-Json/, `${name} must parse canonical brand config`);
-  const escapedPath = path.join(__dirname, name).replace(/'/g, "''");
-  const parse = spawnSync('powershell', ['-NoProfile', '-Command', `$t=$null;$e=$null;[Management.Automation.Language.Parser]::ParseFile('${escapedPath}',[ref]$t,[ref]$e)|Out-Null;if($e.Count){$e|ForEach-Object{Write-Error $_};exit 1}`], { encoding: 'utf8' });
-  assert.equal(parse.status, 0, `${name} PowerShell parse failed: ${parse.stderr}`);
+  if (process.platform === 'win32') {
+    const escapedPath = path.join(__dirname, name).replace(/'/g, "''");
+    const parse = spawnSync('powershell', ['-NoProfile', '-Command', `$t=$null;$e=$null;[Management.Automation.Language.Parser]::ParseFile('${escapedPath}',[ref]$t,[ref]$e)|Out-Null;if($e.Count){$e|ForEach-Object{Write-Error $_};exit 1}`], { encoding: 'utf8' });
+    assert.equal(parse.status, 0, `${name} PowerShell parse failed: ${parse.stderr}`);
+  }
 }
 
 const activeScripts = fs.readdirSync(__dirname)
@@ -150,34 +153,36 @@ assert.match(mainSource, /app\.setPath\("sessionData", initialSessionDataPath\)/
 assert.match(mainSource, /const migrationPromise = isolatedPaths/);
 assert.match(mainSource, /if \(!isolatedTestMode\)\s*\{\s*initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
 
-const signatureProbe = spawnSync('powershell', [
-  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
-  '-ResolveOnly', '-ReleaseFlavor', 'AVX2',
-], { cwd: root, encoding: 'utf8' });
-assert.equal(signatureProbe.status, 0, signatureProbe.stderr);
-const signaturePaths = JSON.parse(signatureProbe.stdout);
-assert.equal(path.basename(signaturePaths.installer), brand.installerName(packageJson.version, 'AVX2'));
-assert.equal(path.basename(signaturePaths.application), `${brand.displayName}.exe`);
-assert.equal(path.basename(signaturePaths.helper), brand.helperExecutable);
-const legacySignatureProbe = spawnSync('powershell', [
-  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
-  '-ResolveOnly', '-ReleaseFlavor', 'Legacy',
-], { cwd: root, encoding: 'utf8' });
-assert.equal(legacySignatureProbe.status, 0, legacySignatureProbe.stderr);
-assert.equal(path.basename(JSON.parse(legacySignatureProbe.stdout).installer), brand.installerName(packageJson.version, 'Legacy'));
-const invalidSignatureProbe = spawnSync('powershell', [
-  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
-  '-ResolveOnly', '-ReleaseFlavor', 'SSE2',
-], { cwd: root, encoding: 'utf8' });
-assert.notEqual(invalidSignatureProbe.status, 0);
-const invalidEnvironmentSignatureProbe = spawnSync('powershell', [
-  '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
-  '-ResolveOnly',
-], { cwd: root, encoding: 'utf8', env: { ...process.env, RELEASE_FLAVOR: 'SSE2' } });
-assert.notEqual(invalidEnvironmentSignatureProbe.status, 0, 'invalid RELEASE_FLAVOR environment fallback must fail');
-const signatureSource = fs.readFileSync(path.join(__dirname, 'verify-signature.ps1'), 'utf8');
-assert.match(signatureSource, /\[ValidateSet\(\s*["']Legacy["']\s*,\s*["']AVX2["']\s*\)\]/, 'signature verifier accepts only signed release flavors when one is passed');
-assert.doesNotMatch(signatureSource, /Get-ChildItem/);
+if (process.platform === 'win32') {
+  const signatureProbe = spawnSync('powershell', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+    '-ResolveOnly', '-ReleaseFlavor', 'AVX2',
+  ], { cwd: root, encoding: 'utf8' });
+  assert.equal(signatureProbe.status, 0, signatureProbe.stderr);
+  const signaturePaths = JSON.parse(signatureProbe.stdout);
+  assert.equal(path.basename(signaturePaths.installer), brand.installerName(packageJson.version, 'AVX2'));
+  assert.equal(path.basename(signaturePaths.application), `${brand.displayName}.exe`);
+  assert.equal(path.basename(signaturePaths.helper), brand.helperExecutable);
+  const legacySignatureProbe = spawnSync('powershell', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+    '-ResolveOnly', '-ReleaseFlavor', 'Legacy',
+  ], { cwd: root, encoding: 'utf8' });
+  assert.equal(legacySignatureProbe.status, 0, legacySignatureProbe.stderr);
+  assert.equal(path.basename(JSON.parse(legacySignatureProbe.stdout).installer), brand.installerName(packageJson.version, 'Legacy'));
+  const invalidSignatureProbe = spawnSync('powershell', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+    '-ResolveOnly', '-ReleaseFlavor', 'SSE2',
+  ], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(invalidSignatureProbe.status, 0);
+  const invalidEnvironmentSignatureProbe = spawnSync('powershell', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'verify-signature.ps1'),
+    '-ResolveOnly',
+  ], { cwd: root, encoding: 'utf8', env: { ...process.env, RELEASE_FLAVOR: 'SSE2' } });
+  assert.notEqual(invalidEnvironmentSignatureProbe.status, 0, 'invalid RELEASE_FLAVOR environment fallback must fail');
+  const signatureSource = fs.readFileSync(path.join(__dirname, 'verify-signature.ps1'), 'utf8');
+  assert.match(signatureSource, /\[ValidateSet\(\s*["']Legacy["']\s*,\s*["']AVX2["']\s*\)\]/, 'signature verifier accepts only signed release flavors when one is passed');
+  assert.doesNotMatch(signatureSource, /Get-ChildItem/);
+}
 
 require('./generate-release-notes.test.cjs');
 require('../src/self-test-paths.test.cjs');
