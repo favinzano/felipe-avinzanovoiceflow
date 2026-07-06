@@ -76,7 +76,7 @@ for (const name of activeScripts) {
 assert.equal(packageJson.build.win.artifactName, `${brand.slug}-Setup-\${version}-\${arch}.\${ext}`);
 assert.equal(packageJson.build.publish[0].owner, brand.repository.owner);
 assert.equal(packageJson.build.publish[0].repo, brand.repository.name);
-assert.deepEqual(packageJson.build.extraResources[0].filter, [brand.helperExecutable]);
+assert.deepEqual(packageJson.build.win.extraResources[0].filter, [brand.helperExecutable]);
 
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
 assert.doesNotMatch(workflow, forbidden, 'release workflow contains a legacy product identifier');
