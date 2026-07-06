@@ -1,0 +1,56 @@
+name: Linux Release Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TESTING_REMOTELY: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Load brand contract
+        run: |
+          PRODUCT_SLUG=$(node -p "require('./src/brand-config.json').slug")
+          PRODUCT_DISPLAY_NAME=$(node -p "require('./src/brand-config.json').displayName")
+          echo "PRODUCT_SLUG=$PRODUCT_SLUG" >> "$GITHUB_ENV"
+          echo "PRODUCT_DISPLAY_NAME=$PRODUCT_DISPLAY_NAME" >> "$GITHUB_ENV"
+      - run: npm test
+      - run: npm run test:production
+      - run: npm run test:models
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm run release:linux
+      - name: Verify Linux package
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(find release -maxdepth 1 -name '*.AppImage' | head -n1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "No se genero ningun .AppImage en release/." >&2
+            exit 1
+          fi
+          chmod +x "$APPIMAGE"
+          EXTRACT_DIR="$(mktemp -d)"
+          (cd "$EXTRACT_DIR" && "$OLDPWD/$APPIMAGE" --appimage-extract >/dev/null)
+          test -f "$EXTRACT_DIR/squashfs-root/resources/app.asar" || { echo "Falta app.asar dentro del AppImage." >&2; exit 1; }
+          ONNX_LINUX="$EXTRACT_DIR/squashfs-root/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/linux"
+          test -d "$ONNX_LINUX" || { echo "Falta el binario nativo de ONNX Runtime para linux: $ONNX_LINUX" >&2; exit 1; }
+          echo "Linux package verified: $APPIMAGE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT_SLUG }}-linux
+          path: |
+            release/${{ env.PRODUCT_SLUG }}-Setup-*.AppImage
+            release/latest-linux.yml

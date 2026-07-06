@@ -19,6 +19,7 @@
         "pre-release": "node scripts/compress-natives.cjs",
         "release:win": "npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis --publish=never",
         "release:mac": "npm run build && npm run build:icons && electron-builder --mac --publish=never",
+        "release:linux": "npm run build && npm run build:icons && electron-builder --linux --publish=never",
         "release:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
         "release:dir": "npm run build && npm run build:native && npm run pre-release && electron-builder --dir --win",
         "release:notes": "node scripts/generate-release-notes.cjs",
@@ -56,6 +57,7 @@
         "asarUnpack": [
             "node_modules/onnxruntime-node/bin/napi-v3/win32/x64/**/*",
             "node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
+            "node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
             "node_modules/better-sqlite3/build/Release/**/*",
             "node_modules/@nut-tree-fork/libnut-darwin/build/Release/**/*",
             "node_modules/@nut-tree-fork/libnut-linux/build/Release/**/*",
@@ -142,6 +144,29 @@
                 "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
                 "!node_modules/@nut-tree-fork/libnut-win32/**/*",
                 "!node_modules/@nut-tree-fork/libnut-linux/**/*",
+                "!.tmp{,/**/*}",
+                "!tools{,/**/*}",
+                "!native{,/**/*}"
+            ]
+        },
+        "linux": {
+            "icon": "assets/app-icon.png",
+            "category": "Utility",
+            "target": [
+                {
+                    "target": "AppImage",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "artifactName": "felipe-avinzanovoiceflow-Setup-${version}-${arch}.${ext}",
+            "files": [
+                "!node_modules/onnxruntime-node/bin/napi-v3/win32/**/*",
+                "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
+                "!node_modules/@nut-tree-fork/libnut-win32/**/*",
+                "!node_modules/@nut-tree-fork/libnut-darwin/**/*",
+                "!node_modules/@nut-tree-fork/node-mac-permissions/**/*",
                 "!.tmp{,/**/*}",
                 "!tools{,/**/*}",
                 "!native{,/**/*}"
