@@ -86,7 +86,10 @@
             "!node_modules/**/.cache/**/*",
             "!node_modules/@huggingface/transformers/.cache/**/*",
             "!**/*.onnx",
-            "!**/*.onnx_data"
+            "!**/*.onnx_data",
+            "!.tmp/**/*",
+            "!tools/**/*",
+            "!native/**/*"
         ],
         "win": {
             "icon": "assets/app-icon.ico",
@@ -102,7 +105,10 @@
             "files": [
                 "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**/*",
                 "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
-                "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*"
+                "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*",
+                "!.tmp{,/**/*}",
+                "!tools{,/**/*}",
+                "!native{,/**/*}"
             ],
             "extraResources": [
                 {
@@ -131,7 +137,10 @@
                 "!node_modules/onnxruntime-node/bin/napi-v3/win32/**/*",
                 "!node_modules/onnxruntime-node/bin/napi-v3/linux/**/*",
                 "!node_modules/@nut-tree-fork/libnut-win32/**/*",
-                "!node_modules/@nut-tree-fork/libnut-linux/**/*"
+                "!node_modules/@nut-tree-fork/libnut-linux/**/*",
+                "!.tmp{,/**/*}",
+                "!tools{,/**/*}",
+                "!native{,/**/*}"
             ]
         },
         "nsis": {
