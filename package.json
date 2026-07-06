@@ -92,10 +92,10 @@
             "!.tmp/**/*",
             "!tools/**/*",
             "!native/**/*",
-            "!.claude/**/*",
-            "!.agents/**/*",
-            "!.codex/**/*",
-            "!.impeccable/**/*"
+            "!.claude{,/**/*}",
+            "!.agents{,/**/*}",
+            "!.codex{,/**/*}",
+            "!.impeccable{,/**/*}"
         ],
         "win": {
             "icon": "assets/app-icon.ico",
@@ -114,7 +114,11 @@
                 "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**/*",
                 "!.tmp{,/**/*}",
                 "!tools{,/**/*}",
-                "!native{,/**/*}"
+                "!native{,/**/*}",
+                "!.claude{,/**/*}",
+                "!.agents{,/**/*}",
+                "!.codex{,/**/*}",
+                "!.impeccable{,/**/*}"
             ],
             "extraResources": [
                 {
@@ -146,7 +150,11 @@
                 "!node_modules/@nut-tree-fork/libnut-linux/**/*",
                 "!.tmp{,/**/*}",
                 "!tools{,/**/*}",
-                "!native{,/**/*}"
+                "!native{,/**/*}",
+                "!.claude{,/**/*}",
+                "!.agents{,/**/*}",
+                "!.codex{,/**/*}",
+                "!.impeccable{,/**/*}"
             ]
         },
         "linux": {
@@ -169,7 +177,11 @@
                 "!node_modules/@nut-tree-fork/node-mac-permissions/**/*",
                 "!.tmp{,/**/*}",
                 "!tools{,/**/*}",
-                "!native{,/**/*}"
+                "!native{,/**/*}",
+                "!.claude{,/**/*}",
+                "!.agents{,/**/*}",
+                "!.codex{,/**/*}",
+                "!.impeccable{,/**/*}"
             ]
         },
         "nsis": {
