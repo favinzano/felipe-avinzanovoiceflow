@@ -1,0 +1,59 @@
+name: macOS Release Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      TESTING_REMOTELY: "true"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Load brand contract
+        run: |
+          PRODUCT_SLUG=$(node -p "require('./src/brand-config.json').slug")
+          PRODUCT_DISPLAY_NAME=$(node -p "require('./src/brand-config.json').displayName")
+          echo "PRODUCT_SLUG=$PRODUCT_SLUG" >> "$GITHUB_ENV"
+          echo "PRODUCT_DISPLAY_NAME=$PRODUCT_DISPLAY_NAME" >> "$GITHUB_ENV"
+      - run: npm test
+      - run: npm run test:production
+      - run: npm run test:models
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm run release:mac
+      - name: Verify macOS package
+        run: |
+          set -euo pipefail
+          DMG=$(find release -maxdepth 1 -name '*.dmg' | head -n1)
+          if [ -z "$DMG" ]; then
+            echo "No se genero ningun .dmg en release/." >&2
+            exit 1
+          fi
+          APP=$(find release -maxdepth 2 -name '*.app' | head -n1)
+          if [ -z "$APP" ]; then
+            echo "No se genero ningun paquete .app en release/." >&2
+            exit 1
+          fi
+          test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle." >&2; exit 1; }
+          ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
+          test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin: $ONNX_DARWIN" >&2; exit 1; }
+          echo "macOS package verified: $DMG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT_SLUG }}-macos
+          path: |
+            release/${{ env.PRODUCT_SLUG }}-Setup-*.dmg
+            release/latest-mac.yml
