@@ -78,11 +78,15 @@ function isMacAccessibilityAuthorized(loadPermissions) {
 // Best-effort only: libnut-linux's native binding has no proactive permission API (its
 // permissionCheck module is a verbatim copy of the darwin one, gated on process.platform
 // === 'darwin', so it's a no-op on linux), and this hasn't been verified against a real
-// X11/Wayland failure. We keep it narrow so unrelated native errors aren't mislabeled.
+// X11/Wayland failure. Beyond the original display/x11 match, this also catches generic
+// permission/EACCES wording (e.g. a denied automation grant under a hardened Wayland
+// session) so those aren't lumped in with "no automation backend at all".
 function classifyNativeAutomationError(error, platform) {
   if (platform === 'linux') {
     const message = String(error?.message || '').toLowerCase();
-    if (/display|x11|xopendisplay/.test(message)) return PASTE_FAILURE_REASON.PERMISSION_DENIED;
+    if (/display|x11|xopendisplay|permission|access denied|not authorized|eacces/.test(message)) {
+      return PASTE_FAILURE_REASON.PERMISSION_DENIED;
+    }
   }
   return PASTE_FAILURE_REASON.AUTOMATION_UNAVAILABLE;
 }
