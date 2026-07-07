@@ -738,7 +738,8 @@ function rendererBrandArguments() {
     `--voiceflow-brand-display-name=${encodeURIComponent(brand.displayName)}`,
     `--voiceflow-brand-base-name=${encodeURIComponent(brand.baseName)}`,
     `--voiceflow-brand-suffix=${encodeURIComponent(brand.suffix)}`,
-    `--voiceflow-brand-copper=${encodeURIComponent(brand.copper)}`
+    `--voiceflow-brand-copper=${encodeURIComponent(brand.copper)}`,
+    `--voiceflow-app-version=${encodeURIComponent(app.getVersion())}`
   ];
 }
 

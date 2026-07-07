@@ -16,6 +16,7 @@ const voiceAPI = window.voiceAPI || {
     copper: "#B66D45"
   },
   runtime: { isPackaged: false, preserveLegacyStorage: false },
+  appVersion: "0.0.0-dev",
   copy: async (text) => navigator.clipboard?.writeText(text),
   paste: async (text) => {
     try {
@@ -65,7 +66,7 @@ const voiceAPI = window.voiceAPI || {
 
 const brand = voiceAPI.brand;
 
-function applyBrand(brand) {
+function applyBrand(brand, appVersion) {
   document.title = brand.displayName;
   document.querySelectorAll("[data-brand-base]").forEach((target) => {
     target.textContent = brand.baseName;
@@ -73,13 +74,17 @@ function applyBrand(brand) {
   document.querySelectorAll("[data-brand-suffix]").forEach((target) => {
     target.textContent = brand.suffix;
   });
+  document.querySelectorAll("[data-app-version]").forEach((target) => {
+    target.textContent = appVersion;
+  });
   document.querySelectorAll("[data-brand-label]").forEach((target) => {
-    const labelSuffix = target.getAttribute("data-brand-label-suffix") || "";
+    const suffixTemplate = target.getAttribute("data-brand-label-suffix-template") || "";
+    const labelSuffix = suffixTemplate.replace("{version}", appVersion);
     target.setAttribute("aria-label", `${brand.displayName}${labelSuffix}`);
   });
 }
 
-applyBrand(brand);
+applyBrand(brand, voiceAPI.appVersion);
 
 if (!voiceAPI.runtime.preserveLegacyStorage) {
   initializeProductionProfile(localStorage, voiceAPI.runtime.isPackaged);

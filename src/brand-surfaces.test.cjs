@@ -109,8 +109,11 @@ assert.doesNotMatch(
   "sidebar wordmark no longer renders the felipe avinzano prefix"
 );
 assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
-assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix=["'], versión 1\.1\.3["']/, "footer wordmark preserves its version in the accessible label");
+assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix-template=["'], versión \{version\}["']/, "footer wordmark composes its accessible label suffix from the runtime version, not a hardcoded one");
+assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*>[\s\S]{0,320}?data-app-version><\/span>/, "footer wordmark renders the runtime version instead of a hardcoded one");
 assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
+assert.match(indexHtml, /<dt>Versión<\/dt><dd data-app-version><\/dd>/, "about panel renders the runtime version instead of a hardcoded one");
+assert.doesNotMatch(indexHtml, /\b1\.1\.\d+\b/, "index.html never hardcodes a version number that will drift from package.json");
 assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
 assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay HTML has a complete fallback title");
@@ -128,14 +131,30 @@ assertBrandCss(overlayStyles, "overlay stylesheet");
 assert.match(styles, /\.hero-emphasis\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif/, "approved hero accent retains DM Serif Display");
 
 for (const [source, surface] of [[renderer, "main renderer"], [overlayRenderer, "overlay renderer"]]) {
-  assert.match(source, /function applyBrand\(brand\)/, `${surface} defines applyBrand`);
   assert.match(source, /document\.title\s*=\s*brand\.displayName/, `${surface} applies the complete title`);
   assert.match(source, /querySelectorAll\(["']\[data-brand-base\]["']\)[\s\S]*brand\.baseName/, `${surface} applies the base name`);
   assert.match(source, /querySelectorAll\(["']\[data-brand-suffix\]["']\)[\s\S]*brand\.suffix/, `${surface} applies the suffix independently`);
   assert.match(source, /querySelectorAll\(["']\[data-brand-label\]["']\)[\s\S]*setAttribute\(["']aria-label["']/, `${surface} updates accessible labels`);
-  assert.match(source, /getAttribute\(["']data-brand-label-suffix["']\)\s*\|\|\s*["']["'][\s\S]*`\$\{brand\.displayName\}\$\{labelSuffix\}`/, `${surface} composes optional accessible label suffixes`);
-  assert.match(source, /^\s*applyBrand\(brand\);\s*$/m, `${surface} invokes applyBrand before interaction`);
 }
+
+// The overlay bubble never displays a version, so its applyBrand keeps the
+// simpler, single-argument, static-suffix contract.
+assert.match(overlayRenderer, /function applyBrand\(brand\)/, "overlay renderer defines applyBrand");
+assert.match(overlayRenderer, /getAttribute\(["']data-brand-label-suffix["']\)\s*\|\|\s*["']["'][\s\S]*`\$\{brand\.displayName\}\$\{labelSuffix\}`/, "overlay renderer composes optional accessible label suffixes");
+assert.match(overlayRenderer, /^\s*applyBrand\(brand\);\s*$/m, "overlay renderer invokes applyBrand before interaction");
+
+// The main renderer additionally renders the live app version everywhere the
+// UI shows one, instead of a value baked into the HTML at release time (the
+// root cause of the version display drifting from the actual running app).
+assert.match(renderer, /function applyBrand\(brand,\s*appVersion\)/, "main renderer's applyBrand accepts the runtime app version");
+assert.match(renderer, /querySelectorAll\(["']\[data-app-version\]["']\)[\s\S]*appVersion/, "main renderer applies the runtime version to every version placeholder");
+assert.match(renderer, /getAttribute\(["']data-brand-label-suffix-template["']\)\s*\|\|\s*["']["'][\s\S]*replace\(["']\{version\}["'],\s*appVersion\)[\s\S]*`\$\{brand\.displayName\}\$\{labelSuffix\}`/, "main renderer composes accessible label suffixes from a version template, not a hardcoded string");
+assert.match(renderer, /^\s*applyBrand\(brand,\s*voiceAPI\.appVersion\);\s*$/m, "main renderer invokes applyBrand with the runtime app version before interaction");
+assert.match(renderer, /appVersion:\s*["'][^"']+["']/, "browser preview fallback exposes a placeholder app version");
+assert.match(preload, /appVersion\s*=\s*readEncodedArgument\(["']--voiceflow-app-version=["']\)/, "main preload reads the runtime app version from an appended argument");
+assert.match(preload, /appVersion,/, "main preload exposes appVersion to the renderer");
+assert.doesNotMatch(overlayPreload, /appVersion/, "overlay preload remains outside the version display contract");
+assert.match(main, /`--voiceflow-app-version=\$\{encodeURIComponent\(app\.getVersion\(\)\)\}`/, "main passes the real app.getVersion() through the same appended-argument channel the update dialog uses");
 assert.match(renderer, /brand:\s*\{[\s\S]*displayName:\s*["']felipe avinzano VoiceFlow["'][\s\S]*baseName:\s*["']felipe avinzano Voice["'][\s\S]*suffix:\s*["']Flow["'][\s\S]*copper:\s*["']#B66D45["']/, "browser preview exposes the approved brand fallback");
 assert.doesNotMatch(renderer, /brandWordmarkMarkup/, "the retired guide's split-brand markup helper is not reintroduced");
 assert.match(renderer, /`\$\{brand\.displayName\} diagnostics`/, "diagnostics use the complete runtime display name");

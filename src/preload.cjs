@@ -12,6 +12,7 @@ const rendererBrand = Object.freeze({
   suffix: readEncodedArgument("--voiceflow-brand-suffix="),
   copper: readEncodedArgument("--voiceflow-brand-copper=")
 });
+const appVersion = readEncodedArgument("--voiceflow-app-version=");
 const preserveLegacyStorageArgument = process.argv.filter((value) => value.startsWith("--voiceflow-preserve-legacy-storage=")).at(-1);
 const rendererRuntime = Object.freeze({
   isPackaged: !process.defaultApp,
@@ -21,6 +22,7 @@ const rendererRuntime = Object.freeze({
 contextBridge.exposeInMainWorld("voiceAPI", {
   brand: rendererBrand,
   runtime: rendererRuntime,
+  appVersion,
   copy: (text) => ipcRenderer.invoke("clipboard:write", text),
   paste: (text) => ipcRenderer.invoke("clipboard:paste", text),
   notifyPastePermissionDenied: () => ipcRenderer.invoke("paste:notify-permission-denied"),
