@@ -143,10 +143,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          # Both flavors emit a file literally named latest.yml, so only one can
+          # be published under that name (electron-updater's Windows channel file
+          # has no per-flavor naming). AVX2 covers the vast majority of modern
+          # CPUs, so it is the auto-update channel; Legacy stays a manual download.
+          cp release-assets/felipe-avinzanovoiceflow-avx2-windows-x64/latest.yml release-assets/latest.yml
+
           gh release create "$RELEASE_TAG" \
             release-assets/**/*.exe \
             release-assets/**/*.exe.blockmap \
             release-assets/**/*.exe.sha256 \
+            release-assets/latest.yml \
             --repo "favinzano/felipe-avinzanovoiceflow" \
             --title "felipe avinzano VoiceFlow $RELEASE_TAG" \
             --generate-notes \
