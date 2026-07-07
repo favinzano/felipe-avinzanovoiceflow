@@ -6,11 +6,11 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  generate-and-publish:
-    name: Generate and publish release notes
+  generate:
+    name: Generate release notes draft
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -33,11 +33,18 @@ jobs:
       - name: Generate release notes
         run: npm run release:notes
 
-      - name: Publish release draft
-        uses: softprops/action-gh-release@v2
+      # This used to publish a `draft: true` GitHub Release via
+      # softprops/action-gh-release. That creates its own release object for
+      # the tag, separate from (and racing) the real release that
+      # release.yml's build-and-publish job creates once the Windows/macOS/
+      # Linux installers finish building -- the two are never reconciled, so
+      # the repo ends up with an empty orphaned draft alongside the real,
+      # asset-bearing release. Publish the draft text as a build artifact
+      # instead; the real release's notes are curated by hand from this file
+      # once the installers are ready.
+      - name: Upload release notes draft
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          body_path: release-notes-draft.md
-          draft: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-notes-draft
+          path: release-notes-draft.md
+          if-no-files-found: error
