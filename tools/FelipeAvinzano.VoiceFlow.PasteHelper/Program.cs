@@ -208,6 +208,14 @@ internal static class Program
         };
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
         var win32Error = sent == (uint)inputs.Length ? 0 : Marshal.GetLastWin32Error();
+        // SendInput only queues the keystrokes; it returns before the target thread's
+        // message loop actually dequeues and processes them. Detaching thread input
+        // right away can race that processing -- if the target is still catching up
+        // (e.g. CPU was pegged by a long Whisper transcription right before this ran),
+        // the shared modifier-key state can disappear before the V keydown is handled,
+        // so the target sees a bare "v" instead of Ctrl+V. Give the queue a moment to
+        // drain before tearing down the attachment.
+        Thread.Sleep(50);
         if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
         if (attachedToForeground) AttachThreadInput(currentThread, foregroundThread, false);
         Write(new
