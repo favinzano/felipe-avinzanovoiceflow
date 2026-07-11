@@ -733,6 +733,22 @@ async function resetTranscriber() {
   loadingDevice = undefined;
 }
 
+// Model loading is otherwise fully lazy: the first dictation after each app
+// launch pays the entire cold-load cost (measured ~5s for the cached Large
+// v3 Turbo build) with no "still loading" signal until after the user stops
+// recording. Warming it in the background right after bootstrap means it's
+// usually already loaded (or nearly done) by the time a real recording
+// finishes. Best-effort only: any failure here just falls back to the
+// existing lazy load on the first real transcribe request.
+async function warmTranscriberOnStartup() {
+  try {
+    const { settings } = await readState(activeUserDataPath);
+    await getTranscriberWithRetry(settings.whisperProfile, settings.inferenceDevice);
+  } catch (error) {
+    console.warn("Could not pre-warm the transcription model:", error);
+  }
+}
+
 function rendererBrandArguments() {
   return [
     `--voiceflow-brand-display-name=${encodeURIComponent(brand.displayName)}`,
@@ -1045,6 +1061,7 @@ app.whenReady().then(async () => {
   createOverlayWindow();
   createTray();
   bootstrapComplete = true;
+  warmTranscriberOnStartup();
   if (pendingShowMainWindow) {
     pendingShowMainWindow = false;
     showMainWindow();
