@@ -11,6 +11,7 @@ Los instaladores de cada versión están en [Releases](https://github.com/favinz
 | Windows x64 | `felipe-avinzanovoiceflow-Setup-1.1.8-AVX2-x64.exe` | Recomendado en CPUs modernas (2013+). Único con actualización automática. |
 | Windows x64 (Legacy) | `felipe-avinzanovoiceflow-Setup-1.1.8-Legacy-x64.exe` | Para CPUs sin soporte AVX2. Descarga manual, sin auto-actualización. |
 | macOS (Apple Silicon) | `felipe-avinzanovoiceflow-Setup-1.1.8-arm64.dmg` | Build nativo arm64. |
+| macOS (Intel) | `felipe-avinzanovoiceflow-Setup-1.1.8-x64.dmg` | Build nativo x64. |
 | Linux x86_64 | `felipe-avinzanovoiceflow-Setup-1.1.8-x86_64.AppImage` | Ejecutable portable, no requiere instalación. |
 
 Ninguno de los instaladores tiene firma de código (Windows sin Authenticode, macOS sin notarización de Apple):

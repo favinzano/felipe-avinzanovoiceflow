@@ -34,23 +34,32 @@ jobs:
       - run: npm run test:models
       - run: npm audit --omit=dev --audit-level=critical
       - run: npm run release:mac
-      - name: Verify macOS package
+      - name: Verify macOS packages
         run: |
           set -euo pipefail
-          DMG=$(find release -maxdepth 1 -name '*.dmg' | head -n1)
-          if [ -z "$DMG" ]; then
-            echo "No se genero ningun .dmg en release/." >&2
-            exit 1
-          fi
-          APP=$(find release -maxdepth 2 -name '*.app' | head -n1)
-          if [ -z "$APP" ]; then
-            echo "No se genero ningun paquete .app en release/." >&2
-            exit 1
-          fi
-          test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle." >&2; exit 1; }
-          ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
-          test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin: $ONNX_DARWIN" >&2; exit 1; }
-          echo "macOS package verified: $DMG"
+          for ARCH in arm64 x64; do
+            DMG=$(find release -maxdepth 1 -name "*-${ARCH}.dmg" | head -n1)
+            if [ -z "$DMG" ]; then
+              echo "No se genero ningun .dmg para $ARCH en release/." >&2
+              exit 1
+            fi
+            # electron-builder names the x64 output dir "mac" (implicit default)
+            # and every other arch "mac-<arch>".
+            if [ "$ARCH" = "x64" ]; then
+              APP_DIR="release/mac"
+            else
+              APP_DIR="release/mac-${ARCH}"
+            fi
+            APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' 2>/dev/null | head -n1)
+            if [ -z "$APP" ]; then
+              echo "No se genero ningun paquete .app para $ARCH en $APP_DIR." >&2
+              exit 1
+            fi
+            test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle $ARCH." >&2; exit 1; }
+            ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
+            test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin ($ARCH): $ONNX_DARWIN" >&2; exit 1; }
+            echo "macOS package verified for $ARCH: $DMG"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PRODUCT_SLUG }}-macos
