@@ -1,6 +1,6 @@
 # Preparación Para Producción
 
-Estado actual: versión `1.1.8` en producción para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. Los instaladores se publican sin firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver advertencia correspondiente en el README y el bloqueador 1 más abajo.
+Estado actual: versión `1.1.9` en producción para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. Los instaladores se publican sin firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver advertencia correspondiente en el README y el bloqueador 1 más abajo.
 
 ## Verificado
 

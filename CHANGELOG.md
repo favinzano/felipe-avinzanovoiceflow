@@ -8,6 +8,37 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.9] - 2026-07-11
+
+### Corregido
+
+- El overlay de dictado ya no queda oculto detrás de aplicaciones en pantalla
+  completa o maximizadas, tanto en Windows (reafirmación de `alwaysOnTop` en
+  cada actualización de estado) como en macOS (soporte de `visibleOnFullScreen`
+  para Espacios en pantalla completa).
+- El pegado automático ya no reduce el tamaño de una ventana de destino
+  maximizada: se eliminó una llamada incondicional a `SW_RESTORE` en el helper
+  nativo de pegado.
+- Sustituidas dos esperas bloqueantes del helper nativo de pegado por un bucle
+  de bombeo de mensajes, evitando que Windows marque la ventana de destino
+  como "No responde" mientras el helper mantiene el foco adjunto.
+
+### Añadido
+
+- Build nativo de macOS para Intel (x64), junto al ya existente de Apple
+  Silicon (arm64).
+
+### Optimizado
+
+- El modelo de transcripción Whisper ahora se precarga en segundo plano al
+  iniciar la aplicación, en vez de cargarse por completo en el primer dictado.
+
+### Documentación
+
+- Corregidas referencias desactualizadas de versión, marca y modelo en
+  `PRODUCTION_READINESS.md`, `THIRD_PARTY_NOTICES.md` y
+  `docs/RELEASE_CHECKLIST.md`.
+
 ## [1.1.3] - 2026-07-04
 
 ### Corregido
