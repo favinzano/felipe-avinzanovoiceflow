@@ -828,6 +828,10 @@ function updateOverlay(state) {
     return;
   }
   positionOverlay();
+  // Windows silently drops a window's topmost band once another app goes
+  // fullscreen and takes the foreground; re-asserting right before showing
+  // forces the overlay back above it instead of staying hidden behind it.
+  overlayWindow.setAlwaysOnTop(true, "screen-saver");
   overlayWindow.showInactive();
 }
 
