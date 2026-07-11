@@ -814,6 +814,12 @@ function createOverlayWindow() {
     }
   });
   overlayWindow.setAlwaysOnTop(true, "screen-saver");
+  // macOS runs a genuine fullscreen app in its own Space; Spaces isolation
+  // hides every other window there regardless of alwaysOnTop level unless
+  // it opts in with visibleOnFullScreen. Windows/Linux ignore this option.
+  if (process.platform === "darwin") {
+    overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
   overlayWindow.setIgnoreMouseEvents(true);
   overlayWindow.loadFile(path.join(__dirname, "..", "overlay.html"));
 }
