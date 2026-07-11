@@ -1,19 +1,19 @@
 # Preparación Para Producción
 
-Estado actual: release candidate `1.0.0` funcional para Windows x64. Todavía no debe distribuirse públicamente como versión estable firmada.
+Estado actual: versión `1.1.8` en producción para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. Los instaladores se publican sin firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver advertencia correspondiente en el README y el bloqueador 1 más abajo.
 
 ## Verificado
 
 - Compilación del renderer y comprobación sintáctica del proceso principal.
 - Pipeline local con pruebas de limpieza, muletillas, espacios, emails, URLs y estructura.
-- Whisper Base y Whisper Small cargados y probados localmente.
+- Whisper Base y Whisper Large v3 Turbo cargados y probados localmente.
 - Filtrado de salidas no verbales y alucinaciones breves conocidas.
 - Captura mediante atajo global, overlay sin robo de foco y pegado en la aplicación activa.
 - Procesamiento, diccionario e historial locales.
 - Icono e identidad visual propios.
 - Auditoría de dependencias de producción sin vulnerabilidades de severidad alta o crítica (ver vulnerabilidad moderada conocida y sin corrección en Problemas Conocidos).
 - Instalador NSIS reproducible, instalación, arranque y desinstalación validados.
-- Ejecutable empaquetado validado con Whisper Base y Whisper Small.
+- Ejecutable empaquetado validado con Whisper Base y Whisper Large v3 Turbo.
 - Caché de modelos persistente en datos del usuario y acción de reparación.
 - Checksum SHA-256 generado automáticamente.
 - Política de privacidad, términos, licencia y avisos de terceros.
@@ -25,7 +25,7 @@ Estado actual: release candidate `1.0.0` funcional para Windows x64. Todavía no
 
 ## Bloqueadores Antes Del Lanzamiento Estable
 
-1. Firmar el ejecutable e instalador con un certificado de firma de código para reducir alertas de SmartScreen.
+1. Firmar el ejecutable e instalador de Windows con un certificado de firma de código para reducir alertas de SmartScreen, y notarizar el `.dmg` de macOS para evitar el bloqueo de Gatekeeper.
 2. Ejecutar pruebas de aceptación con grabaciones reales:
    - Diferentes voces, acentos, micrófonos y niveles de ruido.
    - Dictados cortos y largos.
@@ -55,4 +55,4 @@ npm run release:verify-signature
 npm audit --omit=dev --audit-level=critical
 ```
 
-`npm run test:models` descarga y valida Whisper Base y Whisper Small, por lo que requiere conexión en su primera ejecución.
+`npm run test:models` descarga y valida Whisper Base y Whisper Large v3 Turbo, por lo que requiere conexión en su primera ejecución.

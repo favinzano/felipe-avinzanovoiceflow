@@ -2,10 +2,10 @@
 
 > Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
 
-Última actualización: 14 de junio de 2026
-Aplicable a: NextStepAI Voice `1.0.0` para Windows x64
+Última actualización: 9 de julio de 2026
+Aplicable a: felipe avinzano VoiceFlow `1.1.8` para Windows x64, macOS y Linux
 
-NextStepAI Voice incluye, utiliza o descarga componentes de terceros. Cada
+felipe avinzano VoiceFlow incluye, utiliza o descarga componentes de terceros. Cada
 componente permanece sujeto a su licencia original. Estos avisos no modifican
 ni sustituyen dichas licencias.
 
@@ -19,7 +19,7 @@ distribuyen dentro de la aplicación empaquetada. Electron también distribuye:
 
 | Componente | Versión utilizada | Finalidad | Licencia |
 |---|---:|---|---|
-| Electron | 39.8.10 | Runtime de escritorio para Windows | MIT; incluye avisos separados de Chromium y otros componentes |
+| Electron | 39.8.10 | Runtime de escritorio para Windows, macOS y Linux | MIT; incluye avisos separados de Chromium y otros componentes |
 | Transformers.js (`@huggingface/transformers`) | 3.8.1 | Carga y ejecución local de modelos de IA | Apache License 2.0 |
 | ONNX Runtime Node | 1.21.0 | Inferencia nativa local en CPU/DirectML | MIT |
 | ONNX Runtime Web | 1.22.0-dev.20250409-89f8206ba4 | Backend requerido por Transformers.js | MIT |
@@ -49,7 +49,7 @@ Face y los almacena en la caché local del usuario.
 | Perfil | Repositorio descargado | Modelo base | Licencia declarada por el modelo base |
 |---|---|---|---|
 | Rápido / Whisper Base | `onnx-community/whisper-base` | `openai/whisper-base` | Apache License 2.0 |
-| Alta precisión / Whisper Small | `onnx-community/whisper-small` | `openai/whisper-small` | Apache License 2.0 |
+| Máxima precisión / Whisper Large v3 Turbo | `onnx-community/whisper-large-v3-turbo` | `openai/whisper-large-v3-turbo` | Apache License 2.0 |
 
 Los repositorios de ONNX Community identifican los modelos base de OpenAI, pero
 no declaran una licencia independiente en sus fichas. Antes de redistribuir los
@@ -57,9 +57,9 @@ modelos fuera del flujo de descarga normal, revisa sus fichas y archivos
 actuales:
 
 - <https://huggingface.co/onnx-community/whisper-base>
-- <https://huggingface.co/onnx-community/whisper-small>
+- <https://huggingface.co/onnx-community/whisper-large-v3-turbo>
 - <https://huggingface.co/openai/whisper-base>
-- <https://huggingface.co/openai/whisper-small>
+- <https://huggingface.co/openai/whisper-large-v3-turbo>
 
 ## Tipografías Distribuidas
 
@@ -122,9 +122,9 @@ principal instalado, aunque puedan participar en la generación del artefacto.
 
 ## Microsoft .NET Runtime
 
-El helper autocontenido `NextStepAI.PasteHelper.exe` incluye componentes del
-runtime Microsoft .NET 8 para Windows x64. .NET Runtime se distribuye bajo
-licencia MIT. Consulta:
+El helper autocontenido `FelipeAvinzano.VoiceFlow.PasteHelper.exe` incluye
+componentes del runtime Microsoft .NET 8 para Windows x64. .NET Runtime se
+distribuye bajo licencia MIT. Consulta:
 
 - <https://github.com/dotnet/runtime>
 - <https://github.com/dotnet/runtime/blob/main/LICENSE.TXT>
@@ -137,8 +137,8 @@ pueden obtenerse y reconstruirse desde sus proyectos originales:
 - Sharp: <https://github.com/lovell/sharp>
 - libvips: <https://github.com/libvips/libvips>
 
-Para solicitar una copia de los textos de licencia incluidos con NextStepAI
-Voice `1.0.0` o reportar una omisión, abre una incidencia en:
+Para solicitar una copia de los textos de licencia incluidos con felipe
+avinzano VoiceFlow `1.1.8` o reportar una omisión, abre una incidencia en:
 
 <https://github.com/favinzano/felipe-avinzanovoiceflow/issues>
 

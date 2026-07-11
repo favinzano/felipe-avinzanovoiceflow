@@ -39,7 +39,7 @@
 
 ## Validación Técnica Del Motor Local
 
-> Alcance de `1.0.0`: perfil Rápido con Whisper Base y perfil Máxima Precisión con Whisper Large v3 Turbo. Esta versión no incluye Whisper Tiny.
+> Alcance vigente: perfil Rápido con Whisper Base y perfil Máxima Precisión con Whisper Large v3 Turbo. La aplicación no incluye Whisper Tiny.
 
 ### Primer Arranque Y Descarga Del Modelo
 
@@ -97,7 +97,7 @@ Validar con Administrador de tareas, Monitor de recursos o Performance Monitor. 
 - [ ] El VAD respeta pausas menores al periodo de gracia y finaliza después de silencios mayores.
 - [ ] `voice-state.json` se recupera correctamente desde su backup.
 - [ ] `npm run release:verify-acceptance` aprueba los doce casos humanos.
-- [ ] Documentar cualquier desviación, reproducción y decisión de aceptación antes de publicar `1.0.0`.
+- [ ] Documentar cualquier desviación, reproducción y decisión de aceptación antes de publicar la versión.
 
 ## Publicación
 
