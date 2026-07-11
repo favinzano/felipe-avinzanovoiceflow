@@ -111,6 +111,7 @@ internal static class Program
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint first, uint second, bool attach);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr window);
     [DllImport("user32.dll")] private static extern IntPtr SetFocus(IntPtr window);
@@ -122,7 +123,34 @@ internal static class Program
     [DllImport("user32.dll", SetLastError = true)] private static extern bool UnhookWindowsHookEx(IntPtr hook);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int virtualKey);
     [DllImport("user32.dll")] private static extern int GetMessage(out Message message, IntPtr window, uint minimum, uint maximum);
+    [DllImport("user32.dll")] private static extern bool PeekMessage(out Message message, IntPtr window, uint filterMin, uint filterMax, uint removeMessage);
+    [DllImport("user32.dll")] private static extern bool TranslateMessage(ref Message message);
+    [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref Message message);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? moduleName);
+
+    private const uint PeekMessageRemove = 0x0001;
+
+    // A plain Thread.Sleep here blocks this thread while AttachThreadInput has
+    // merged its input queue with the target's, and Windows' hang/ghosting
+    // detection watches every thread sharing an attached queue -- not just the
+    // target's own -- so a blocked helper thread can make the *target* window
+    // flash "(No responde)" even though the target itself never stalled.
+    // Pumping this thread's own message queue during the wait keeps it
+    // demonstrably alive without shortening the drain window the "bare v" fix
+    // (91446a9) depends on.
+    private static void PumpingWait(int milliseconds)
+    {
+        var deadline = Environment.TickCount64 + milliseconds;
+        do
+        {
+            while (PeekMessage(out var message, IntPtr.Zero, 0, 0, PeekMessageRemove))
+            {
+                TranslateMessage(ref message);
+                DispatchMessage(ref message);
+            }
+            Thread.Sleep(1);
+        } while (Environment.TickCount64 < deadline);
+    }
 
     private static void Write(object value) => Console.WriteLine(JsonSerializer.Serialize(value));
 
@@ -175,7 +203,11 @@ internal static class Program
             if (!IsWindow(focusHandle) || focusProcessId != expectedProcessId) focusHandle = IntPtr.Zero;
         }
 
-        ShowWindowAsync(handle, 9);
+        // SW_RESTORE (9) un-minimizes, but Windows also treats it as "undo maximize"
+        // on a window that isn't minimized: calling it unconditionally shrank
+        // maximized target windows on every paste. Only restore when the window is
+        // actually iconic so a normal or maximized window is left untouched.
+        if (IsIconic(handle)) ShowWindowAsync(handle, 9);
         var targetThread = GetWindowThreadProcessId(handle, out _);
         var foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
         var currentThread = GetCurrentThreadId();
@@ -187,7 +219,7 @@ internal static class Program
         SetForegroundWindow(handle);
         var setFocusResult = focusHandle != IntPtr.Zero ? SetFocus(focusHandle) : IntPtr.Zero;
         var setFocusError = focusHandle != IntPtr.Zero && setFocusResult == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
-        Thread.Sleep(120);
+        PumpingWait(120);
         var foregroundHandle = GetForegroundWindow();
         var infoAfterFocus = new GuiThreadInfo { size = Marshal.SizeOf<GuiThreadInfo>() };
         GetGUIThreadInfo(targetThread, ref infoAfterFocus);
@@ -215,7 +247,7 @@ internal static class Program
         // the shared modifier-key state can disappear before the V keydown is handled,
         // so the target sees a bare "v" instead of Ctrl+V. Give the queue a moment to
         // drain before tearing down the attachment.
-        Thread.Sleep(50);
+        PumpingWait(50);
         if (attachedToTarget) AttachThreadInput(currentThread, targetThread, false);
         if (attachedToForeground) AttachThreadInput(currentThread, foregroundThread, false);
         Write(new
