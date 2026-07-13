@@ -1,4 +1,4 @@
-name: Windows Matrix Release
+name: Multiplatform Release
 
 on:
   workflow_dispatch:
@@ -124,10 +124,128 @@ jobs:
             release/felipe-avinzanovoiceflow-Setup-*-${{ matrix.flavor }}-x64.exe.sha256
             release/latest.yml
 
+  build-macos:
+    name: Build macOS (arm64 + x64)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      TESTING_REMOTELY: "true"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run production tests
+        run: npm run test:production
+
+      - name: Package macOS installers
+        run: npm run release:mac
+
+      - name: Verify macOS packages
+        run: |
+          set -euo pipefail
+          for ARCH in arm64 x64; do
+            DMG=$(find release -maxdepth 1 -name "*-${ARCH}.dmg" | head -n1)
+            if [ -z "$DMG" ]; then
+              echo "No se genero ningun .dmg para $ARCH en release/." >&2
+              exit 1
+            fi
+            # electron-builder names the x64 output dir "mac" (implicit default)
+            # and every other arch "mac-<arch>".
+            if [ "$ARCH" = "x64" ]; then
+              APP_DIR="release/mac"
+            else
+              APP_DIR="release/mac-${ARCH}"
+            fi
+            APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' 2>/dev/null | head -n1)
+            if [ -z "$APP" ]; then
+              echo "No se genero ningun paquete .app para $ARCH en $APP_DIR." >&2
+              exit 1
+            fi
+            test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle $ARCH." >&2; exit 1; }
+            ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
+            test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin ($ARCH): $ONNX_DARWIN" >&2; exit 1; }
+            echo "macOS package verified for $ARCH: $DMG"
+          done
+
+      - name: Upload macOS installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: felipe-avinzanovoiceflow-macos
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            release/felipe-avinzanovoiceflow-Setup-*.dmg
+            release/latest-mac.yml
+
+  build-linux:
+    name: Build Linux (x64 AppImage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TESTING_REMOTELY: "true"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run production tests
+        run: npm run test:production
+
+      - name: Package Linux installer
+        run: npm run release:linux
+
+      - name: Verify Linux package
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(find release -maxdepth 1 -name '*.AppImage' | head -n1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "No se genero ningun .AppImage en release/." >&2
+            exit 1
+          fi
+          chmod +x "$APPIMAGE"
+          EXTRACT_DIR="$(mktemp -d)"
+          (cd "$EXTRACT_DIR" && "$OLDPWD/$APPIMAGE" --appimage-extract >/dev/null)
+          test -f "$EXTRACT_DIR/squashfs-root/resources/app.asar" || { echo "Falta app.asar dentro del AppImage." >&2; exit 1; }
+          ONNX_LINUX="$EXTRACT_DIR/squashfs-root/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/linux"
+          test -d "$ONNX_LINUX" || { echo "Falta el binario nativo de ONNX Runtime para linux: $ONNX_LINUX" >&2; exit 1; }
+          echo "Linux package verified: $APPIMAGE"
+
+      - name: Upload Linux installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: felipe-avinzanovoiceflow-linux
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            release/felipe-avinzanovoiceflow-Setup-*.AppImage
+            release/latest-linux.yml
+
   publish-prerelease:
     name: Publish unsigned GitHub pre-release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-windows
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -137,6 +255,18 @@ jobs:
         with:
           pattern: felipe-avinzanovoiceflow-*-windows-x64
           path: release-assets
+
+      - name: Download macOS installers
+        uses: actions/download-artifact@v4
+        with:
+          name: felipe-avinzanovoiceflow-macos
+          path: release-assets/macos
+
+      - name: Download Linux installer
+        uses: actions/download-artifact@v4
+        with:
+          name: felipe-avinzanovoiceflow-linux
+          path: release-assets/linux
 
       - name: Publish GitHub pre-release
         env:
@@ -154,6 +284,10 @@ jobs:
             release-assets/**/*.exe.blockmap \
             release-assets/**/*.exe.sha256 \
             release-assets/latest.yml \
+            release-assets/macos/*.dmg \
+            release-assets/macos/latest-mac.yml \
+            release-assets/linux/*.AppImage \
+            release-assets/linux/latest-linux.yml \
             --repo "favinzano/felipe-avinzanovoiceflow" \
             --title "felipe avinzano VoiceFlow $RELEASE_TAG" \
             --generate-notes \
