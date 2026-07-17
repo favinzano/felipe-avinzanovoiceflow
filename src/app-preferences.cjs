@@ -3,6 +3,7 @@ const path = require("path");
 
 const CLOSE_BEHAVIORS = new Set(["ask", "tray", "exit"]);
 const SHORTCUT_MODES = new Set(["toggle", "hold"]);
+const CURRENT_TERMS_VERSION = "2026-07-17-beta-1";
 const DEFAULT_SHORTCUTS = Object.freeze({
   record: "CommandOrControl+Shift+Space",
   reprocess: "CommandOrControl+Alt+Space"
@@ -86,6 +87,33 @@ function setPastePermissionNoticeDismissed(userDataPath, dismissed) {
   return dismissed;
 }
 
+function getLegalAcceptance(userDataPath) {
+  const acceptance = readPreferences(userDataPath).legalAcceptance;
+  if (!acceptance || typeof acceptance !== "object") return null;
+  if (typeof acceptance.termsVersion !== "string" || typeof acceptance.acceptedAt !== "string") return null;
+  return {
+    termsVersion: acceptance.termsVersion,
+    acceptedAt: acceptance.acceptedAt
+  };
+}
+
+function hasAcceptedCurrentTerms(userDataPath) {
+  return getLegalAcceptance(userDataPath)?.termsVersion === CURRENT_TERMS_VERSION;
+}
+
+function acceptCurrentTerms(userDataPath, acceptedAt = new Date().toISOString()) {
+  if (typeof acceptedAt !== "string" || !Number.isFinite(Date.parse(acceptedAt))) {
+    throw new Error("A valid acceptance timestamp is required.");
+  }
+  const preferences = readPreferences(userDataPath);
+  preferences.legalAcceptance = {
+    termsVersion: CURRENT_TERMS_VERSION,
+    acceptedAt
+  };
+  writePreferences(userDataPath, preferences);
+  return preferences.legalAcceptance;
+}
+
 function getShortcutMode(userDataPath) {
   const mode = readPreferences(userDataPath).shortcutMode;
   return SHORTCUT_MODES.has(mode) ? mode : "toggle";
@@ -100,13 +128,17 @@ function setShortcutMode(userDataPath, mode) {
 }
 
 module.exports = {
+  CURRENT_TERMS_VERSION,
   DEFAULT_SHORTCUTS,
+  acceptCurrentTerms,
   getAutoStartEnabled,
   getCloseBehavior,
+  getLegalAcceptance,
   getPastePermissionNoticeDismissed,
   getShortcutMode,
   getShortcuts,
   hasAutoStartPreference,
+  hasAcceptedCurrentTerms,
   setAutoStartEnabled,
   setCloseBehavior,
   setPastePermissionNoticeDismissed,

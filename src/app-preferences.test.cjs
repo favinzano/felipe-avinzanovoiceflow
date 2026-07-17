@@ -3,13 +3,17 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const {
+  CURRENT_TERMS_VERSION,
   DEFAULT_SHORTCUTS,
+  acceptCurrentTerms,
   getAutoStartEnabled,
   getCloseBehavior,
+  getLegalAcceptance,
   getPastePermissionNoticeDismissed,
   getShortcutMode,
   getShortcuts,
   hasAutoStartPreference,
+  hasAcceptedCurrentTerms,
   setAutoStartEnabled,
   setCloseBehavior,
   setPastePermissionNoticeDismissed,
@@ -54,6 +58,24 @@ assert.equal(getPastePermissionNoticeDismissed(directory), true);
 assert.equal(setPastePermissionNoticeDismissed(directory, false), false);
 assert.equal(getPastePermissionNoticeDismissed(directory), false);
 assert.throws(() => setPastePermissionNoticeDismissed(directory, "true"));
+assert.equal(getLegalAcceptance(directory), null);
+assert.equal(hasAcceptedCurrentTerms(directory), false);
+const acceptedAt = "2026-07-17T12:00:00.000Z";
+assert.deepEqual(acceptCurrentTerms(directory, acceptedAt), {
+  termsVersion: CURRENT_TERMS_VERSION,
+  acceptedAt
+});
+assert.deepEqual(getLegalAcceptance(directory), {
+  termsVersion: CURRENT_TERMS_VERSION,
+  acceptedAt
+});
+assert.equal(hasAcceptedCurrentTerms(directory), true);
+const preferencesFile = path.join(directory, "app-preferences.json");
+const stalePreferences = JSON.parse(fs.readFileSync(preferencesFile, "utf8"));
+stalePreferences.legalAcceptance.termsVersion = "previous-material-version";
+fs.writeFileSync(preferencesFile, JSON.stringify(stalePreferences), "utf8");
+assert.equal(hasAcceptedCurrentTerms(directory), false);
+assert.throws(() => acceptCurrentTerms(directory, "not-a-date"));
 
 fs.rmSync(directory, { recursive: true, force: true });
-console.log("App preferences: 28 checks passed.");
+console.log("App preferences: 35 checks passed.");

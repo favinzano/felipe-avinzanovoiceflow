@@ -9,12 +9,18 @@ const { migrateBrandData } = require("./brand-migration.cjs");
 const { prepareBrandElectronPaths } = require("./brand-session-path.cjs");
 const { resolveIsolatedAppPaths } = require('./self-test-paths.cjs');
 const { disableLegacyLoginItems } = require('./login-item-transition.cjs');
+const { configurePlatformAutoStart, getPlatformAutoStartEnabled, resolveAutoStartExecutablePath } = require('./auto-start.cjs');
+const { resolvePlatformCapabilities } = require('./platform-capabilities.cjs');
 const {
+  CURRENT_TERMS_VERSION,
   DEFAULT_SHORTCUTS,
+  acceptCurrentTerms,
   getAutoStartEnabled,
   getCloseBehavior,
+  getLegalAcceptance,
   getShortcutMode,
   getShortcuts,
+  hasAcceptedCurrentTerms,
   hasAutoStartPreference,
   setAutoStartEnabled,
   setCloseBehavior,
@@ -25,7 +31,12 @@ const { createInputStrategy, resolveWin32HelperPath, PASTE_FAILURE_REASON } = re
 const { notifyPastePermissionDenied } = require("./paste-permission-notice.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { loadModelWithRetry } = require("./model-recovery.cjs");
+const { createTranscriptionMetricsStore } = require("./transcription-metrics.cjs");
+const { createTranscriptionService } = require("./transcription-service.cjs");
+const { createModelPackManager } = require("./model-pack-manager.cjs");
+const { createHistoryWriteQueue } = require("./history-write-queue.cjs");
 const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
+const { erasePersonalDataFiles } = require("./personal-data.cjs");
 const {
   clearModelCache,
   directorySize,
@@ -45,13 +56,11 @@ const {
 
 let mainWindow;
 let overlayWindow;
-let transcriber;
-let transcriberProfile;
-let transcriberDevice;
-let transcriberRequestedDevice;
-let transcriberPromise;
-let loadingProfile;
-let loadingDevice;
+let transcriptionService;
+let transcriptionMetricsStore;
+let modelPackManager;
+let historyWriteQueue;
+let waitingForHistoryFlush = false;
 let pasteTarget;
 let shortcutRecording = false;
 let tray;
@@ -66,15 +75,11 @@ let requestedTaskbarState = "idle";
 let modelDownloadActive = false;
 let taskbarPulseTimer;
 let taskbarIcons;
-let lastModelLoadMs;
-let lastTranscriptionMetrics;
-let lastDeviceFallback;
-let lastModelError;
-let lastModelLoadAttempts = 0;
 let brandMigration = { status: "pending" };
 let bootstrapComplete = false;
 let pendingShowMainWindow = false;
-const startHidden = process.argv.includes("--hidden");
+let acceptedRuntimeActive = false;
+let startHidden = process.argv.includes("--hidden");
 const isolatedPaths = resolveIsolatedAppPaths(process.argv);
 const selfTestPaths = isolatedPaths?.mode === 'self-test' ? isolatedPaths : null;
 const isolatedTestMode = Boolean(isolatedPaths);
@@ -269,34 +274,63 @@ function hideToTray() {
 }
 
 function configureAutoStart(enabled) {
-  const shouldEnable = Boolean(enabled);
-  if (process.platform !== "win32" || !app.isPackaged || isolatedTestMode) return false;
-
-  disableLegacyLoginItems({
-    isPackaged: app.isPackaged,
+  const executablePath = resolveAutoStartExecutablePath({
     platform: process.platform,
+    executablePath: app.getPath("exe"),
+    appImagePath: process.env.APPIMAGE
+  });
+  return configurePlatformAutoStart({
+    platform: process.platform,
+    enabled,
+    isPackaged: app.isPackaged,
     isolated: isolatedTestMode,
-    exePath: app.getPath("exe"),
-    localAppData: process.env.LOCALAPPDATA,
-    legacyNames: brand.legacyDataNames,
-    setter: (settings) => app.setLoginItemSettings(settings)
+    displayName: brand.displayName,
+    executablePath,
+    homePath: app.getPath("home"),
+    configHome: process.env.XDG_CONFIG_HOME,
+    appSetLoginItemSettings: (settings) => app.setLoginItemSettings(settings),
+    appGetLoginItemSettings: (settings) => app.getLoginItemSettings(settings),
+    disableLegacyItems: () => disableLegacyLoginItems({
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      isolated: isolatedTestMode,
+      exePath: app.getPath("exe"),
+      localAppData: process.env.LOCALAPPDATA,
+      legacyNames: brand.legacyDataNames,
+      setter: (settings) => app.setLoginItemSettings(settings)
+    })
   });
+}
 
-  app.setLoginItemSettings({
-    name: brand.displayName,
-    openAtLogin: shouldEnable,
-    path: app.getPath("exe"),
-    args: ["--hidden"]
+function readAutoStart() {
+  const executablePath = resolveAutoStartExecutablePath({
+    platform: process.platform,
+    executablePath: app.getPath("exe"),
+    appImagePath: process.env.APPIMAGE
   });
-  return app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
+  return getPlatformAutoStartEnabled({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    isolated: isolatedTestMode,
+    displayName: brand.displayName,
+    executablePath,
+    homePath: app.getPath("home"),
+    configHome: process.env.XDG_CONFIG_HOME,
+    appGetLoginItemSettings: (settings) => app.getLoginItemSettings(settings)
+  });
 }
 
 function initializeAutoStart() {
   const userDataPath = activeUserDataPath;
   const isFirstLaunch = !hasAutoStartPreference(userDataPath);
   const enabled = getAutoStartEnabled(userDataPath);
-  const applied = configureAutoStart(enabled);
-  if (isFirstLaunch && app.isPackaged && process.platform === "win32") {
+  let applied = false;
+  try {
+    applied = configureAutoStart(enabled);
+  } catch (error) {
+    console.warn(`Could not configure auto-start on ${process.platform}:`, error);
+  }
+  if (isFirstLaunch && app.isPackaged) {
     setAutoStartEnabled(userDataPath, applied);
   }
 }
@@ -533,6 +567,17 @@ function configureAutoUpdater() {
 
 function checkForUpdates(interactive = false) {
   if (isolatedTestMode) return;
+  if (!acceptedRuntimeActive) {
+    if (interactive) {
+      showMainWindow();
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Aceptación pendiente",
+        message: "Acepta los Términos de uso antes de buscar actualizaciones."
+      }).catch(() => {});
+    }
+    return;
+  }
   if (!app.isPackaged) {
     if (interactive) {
       dialog.showMessageBox({
@@ -551,6 +596,11 @@ function checkForUpdates(interactive = false) {
 
 async function handleWindowClose(event) {
   if (isQuitting) return;
+  if (!hasAcceptedCurrentTerms(activeUserDataPath)) {
+    isQuitting = true;
+    app.quit();
+    return;
+  }
   event.preventDefault();
   if (closeDialogOpen) return;
 
@@ -591,148 +641,6 @@ async function handleWindowClose(event) {
   }
 }
 
-function normalizeInferenceDevice(device) {
-  return device === "dml" && process.platform === "win32" ? "dml" : "cpu";
-}
-
-// DmlExecutionProvider is listed first so ONNX Runtime prefers the GPU for
-// each op; CPUExecutionProvider is listed second so ORT falls back to CPU
-// per-node (not per-session) when DirectML lacks a kernel for a given op.
-function executionProvidersFor(device) {
-  return device === "dml" ? ["dml", "cpu"] : ["cpu"];
-}
-
-async function getTranscriber(profileId, requestedDevice = "cpu") {
-  const profile = resolveWhisperProfile(profileId);
-  const device = normalizeInferenceDevice(requestedDevice);
-  if (transcriber && transcriberProfile === profile.id && transcriberRequestedDevice === device) return transcriber;
-  if (transcriberPromise && loadingProfile === profile.id && loadingDevice === device) return transcriberPromise;
-  if (transcriberPromise) {
-    await transcriberPromise;
-    return getTranscriber(profile.id, device);
-  }
-
-  loadingProfile = profile.id;
-  loadingDevice = device;
-  transcriberPromise = (async () => {
-    const modelLoadStartedAt = performance.now();
-    const { pipeline, env } = await import("@huggingface/transformers");
-    env.cacheDir = await ensureModelCache(activeUserDataPath, profile.id);
-    env.allowLocalModels = true;
-    env.allowRemoteModels = true;
-
-    if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
-    transcriber = undefined;
-    transcriberProfile = undefined;
-    transcriberDevice = undefined;
-    transcriberRequestedDevice = undefined;
-
-    const pipelineOptions = {
-      dtype: profile.dtype,
-      progress_callback: (progress) => {
-        if (["initiate", "download", "progress"].includes(progress.status)) setModelDownloadActive(true);
-        if (progress.status === "ready") setModelDownloadActive(false);
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        mainWindow.webContents.send("model:progress", {
-          profile: profile.id,
-          label: profile.shortLabel,
-          status: progress.status,
-          progress: Number.isFinite(progress.progress) ? progress.progress : null
-        });
-      }
-    };
-    let activeDevice = device;
-    let nextTranscriber;
-    try {
-      nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
-        ...pipelineOptions,
-        device,
-        session_options: { executionProviders: executionProvidersFor(device) }
-      });
-      lastDeviceFallback = undefined;
-    } catch (error) {
-      if (device !== "dml") throw error;
-      console.warn("DirectML initialization failed; falling back to CPU:", error);
-      activeDevice = "cpu";
-      lastDeviceFallback = true;
-      nextTranscriber = await pipeline("automatic-speech-recognition", profile.model, {
-        ...pipelineOptions,
-        device: "cpu",
-        session_options: { executionProviders: executionProvidersFor("cpu") }
-      });
-    }
-    transcriber = nextTranscriber;
-    transcriberProfile = profile.id;
-    transcriberDevice = activeDevice;
-    transcriberRequestedDevice = device;
-    lastModelLoadMs = Math.round(performance.now() - modelLoadStartedAt);
-    return nextTranscriber;
-  })();
-
-  try {
-    return await transcriberPromise;
-  } catch (error) {
-    transcriber = undefined;
-    transcriberProfile = undefined;
-    transcriberDevice = undefined;
-    transcriberRequestedDevice = undefined;
-    throw error;
-  } finally {
-    setModelDownloadActive(false);
-    transcriberPromise = undefined;
-    loadingProfile = undefined;
-    loadingDevice = undefined;
-  }
-}
-
-function friendlyModelError(error) {
-  const message = String(error?.message || error || "");
-  if (/espacio insuficiente/i.test(message)) return message;
-  if (/ENOSPC|no space left/i.test(message)) return "No hay espacio suficiente para descargar o preparar el modelo.";
-  if (/fetch|network|ENOTFOUND|ECONN|HTTP|offline/i.test(message)) {
-    return "No fue posible descargar el modelo. Revisa tu conexión e inténtalo nuevamente.";
-  }
-  return "No fue posible preparar el modelo local. Usa “Reparar modelos” desde Soporte e inténtalo nuevamente.";
-}
-
-function serializeModelError(error, attempt) {
-  return {
-    at: new Date().toISOString(),
-    attempt,
-    name: String(error?.name || "Error"),
-    code: error?.code ? String(error.code) : undefined,
-    message: String(error?.message || error || "Unknown model error")
-  };
-}
-
-async function getTranscriberWithRetry(profileId, requestedDevice = "cpu", maxAttempts = 2) {
-  const result = await loadModelWithRetry(
-    () => getTranscriber(profileId, requestedDevice),
-    {
-      maxAttempts,
-      retryDelayMs: 300,
-      onFailure: (error, attempt) => {
-        lastModelError = serializeModelError(error, attempt);
-        console.error(`Whisper model load attempt ${attempt} failed:`, error);
-      }
-    }
-  );
-  lastModelLoadAttempts = result.attempts;
-  lastModelError = undefined;
-  return result.value;
-}
-
-async function resetTranscriber() {
-  if (transcriber && typeof transcriber.dispose === "function") await transcriber.dispose();
-  transcriber = undefined;
-  transcriberProfile = undefined;
-  transcriberDevice = undefined;
-  transcriberRequestedDevice = undefined;
-  transcriberPromise = undefined;
-  loadingProfile = undefined;
-  loadingDevice = undefined;
-}
-
 // Model loading is otherwise fully lazy: the first dictation after each app
 // launch pays the entire cold-load cost (measured ~5s for the cached Large
 // v3 Turbo build) with no "still loading" signal until after the user stops
@@ -743,25 +651,65 @@ async function resetTranscriber() {
 async function warmTranscriberOnStartup() {
   try {
     const { settings } = await readState(activeUserDataPath);
-    await getTranscriberWithRetry(settings.whisperProfile, settings.inferenceDevice);
+    await transcriptionService.prepare(settings.whisperProfile, settings.inferenceDevice);
   } catch (error) {
     console.warn("Could not pre-warm the transcription model:", error);
   }
 }
 
+function getCurrentLegalStatus() {
+  const acceptance = getLegalAcceptance(activeUserDataPath);
+  return {
+    accepted: isolatedTestMode || acceptance?.termsVersion === CURRENT_TERMS_VERSION,
+    currentTermsVersion: CURRENT_TERMS_VERSION,
+    acceptance,
+    contactEmail: "legal@felipeavinzano.com"
+  };
+}
+
+function registerAcceptedShortcuts() {
+  try {
+    registerGlobalShortcuts(getShortcuts(activeUserDataPath), getShortcutMode(activeUserDataPath));
+  } catch (error) {
+    console.error("Could not register global shortcuts:", error);
+    try {
+      registerGlobalShortcuts(DEFAULT_SHORTCUTS);
+      setShortcuts(activeUserDataPath, DEFAULT_SHORTCUTS);
+      setShortcutMode(activeUserDataPath, "toggle");
+    } catch (fallbackError) {
+      console.error("Could not register default global shortcuts:", fallbackError);
+    }
+    sendToMainWindow("shortcut:error");
+  }
+}
+
+function activateAcceptedRuntime() {
+  if (acceptedRuntimeActive || isolatedTestMode) return;
+  if (!hasAcceptedCurrentTerms(activeUserDataPath)) throw new Error("Current Terms have not been accepted.");
+  acceptedRuntimeActive = true;
+  initializeAutoStart();
+  configureAutoUpdater();
+  checkForUpdates();
+  registerAcceptedShortcuts();
+  warmTranscriberOnStartup();
+}
+
 function rendererBrandArguments() {
+  const capabilities = resolvePlatformCapabilities(process.platform, app.isPackaged);
   return [
     `--voiceflow-brand-display-name=${encodeURIComponent(brand.displayName)}`,
     `--voiceflow-brand-base-name=${encodeURIComponent(brand.baseName)}`,
     `--voiceflow-brand-suffix=${encodeURIComponent(brand.suffix)}`,
     `--voiceflow-brand-copper=${encodeURIComponent(brand.copper)}`,
-    `--voiceflow-app-version=${encodeURIComponent(app.getVersion())}`
+    `--voiceflow-app-version=${encodeURIComponent(app.getVersion())}`,
+    `--voiceflow-platform=${encodeURIComponent(process.platform)}`,
+    `--voiceflow-capabilities=${encodeURIComponent(JSON.stringify(capabilities))}`
   ];
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    show: !startHidden,
+    show: !startHidden || !hasAcceptedCurrentTerms(activeUserDataPath),
     width: 1060,
     height: 720,
     minWidth: 860,
@@ -872,8 +820,8 @@ async function capturePasteTarget() {
   pasteTarget = await inputStrategy.captureTarget();
 }
 
-async function pasteIntoActiveApp(text) {
-  clipboard.writeText(text);
+async function pasteIntoActiveApp(text, writeClipboard = true) {
+  if (writeClipboard) clipboard.writeText(text);
 
   const target = pasteTarget;
   pasteTarget = undefined;
@@ -890,14 +838,7 @@ async function runPackagedModelSelfTest() {
   if (!argument) return false;
   const profileId = argument.split("=")[1];
   const profile = resolveWhisperProfile(profileId);
-  const pipe = await getTranscriberWithRetry(profile.id, "cpu");
-  await pipe(new Float32Array(32000), {
-    language: "spanish",
-    task: "transcribe",
-    chunk_length_s: 30,
-    stride_length_s: 5,
-    ...profile.generation
-  });
+  const result = await transcriptionService.transcribe(new Float32Array(32000), "spanish", profile.id, "cpu");
   const reportArgument = process.argv.find((value) => value.startsWith("--self-test-report="));
   if (reportArgument) {
     const cacheDir = getModelCacheDir(activeUserDataPath);
@@ -906,7 +847,7 @@ async function runPackagedModelSelfTest() {
     await fs.writeFile(reportPath, JSON.stringify({
       cacheBytes: await directorySize(cacheDir),
       cacheDir,
-      device: transcriberDevice,
+      device: result.device,
       dtype: profile.dtype,
       model: profile.model,
       profile: profile.id
@@ -1014,6 +955,9 @@ async function runShortcutSelfTest() {
 
 app.whenReady().then(async () => {
   brandMigration = await migrationPromise;
+  if (process.platform === "darwin" && app.isPackaged) {
+    startHidden ||= Boolean(app.getLoginItemSettings().wasOpenedAtLogin);
+  }
   const migrationUsesTarget = migrationResultUsesTarget(brandMigration);
   if (!migrationUsesTarget) {
     brandMigration = {
@@ -1026,6 +970,30 @@ app.whenReady().then(async () => {
     ? targetUserDataPath
     : brandMigration.sourcePath || existingLegacyUserDataPath || targetUserDataPath;
   initDb(activeUserDataPath);
+  historyWriteQueue = createHistoryWriteQueue({
+    insert: insertTranscription,
+    trim: trimTranscriptions,
+    onError: (error) => console.error("Could not persist transcription history:", error)
+  });
+  transcriptionMetricsStore = createTranscriptionMetricsStore(activeUserDataPath);
+  modelPackManager = createModelPackManager(activeUserDataPath, app.getVersion());
+  transcriptionService = createTranscriptionService({
+    userDataPath: activeUserDataPath,
+    resolveProfile: resolveWhisperProfile,
+    ensureModelCache: async (userDataPath, profileId) => {
+      const packs = await modelPackManager.list();
+      const offlinePack = packs.find((pack) => pack.valid !== false && pack.engine === "transformers-js" && pack.profile === profileId);
+      return offlinePack?.directory || ensureModelCache(userDataPath, profileId);
+    },
+    loadModelWithRetry,
+    allowRemoteModels: false,
+    onDownloadState: setModelDownloadActive,
+    onProgress: (progress) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send("model:progress", progress);
+    }
+  });
+  if (process.platform === "win32") inputStrategy.warm?.();
 
   try {
     if (await runShortcutSelfTest()) {
@@ -1051,17 +1019,16 @@ app.whenReady().then(async () => {
   }
 
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === "media";
+    return permission === "media" && hasAcceptedCurrentTerms(activeUserDataPath);
   });
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === "media");
+    callback(permission === "media" && hasAcceptedCurrentTerms(activeUserDataPath));
   });
 
   createWindow();
   createOverlayWindow();
   createTray();
   bootstrapComplete = true;
-  warmTranscriberOnStartup();
   if (pendingShowMainWindow) {
     pendingShowMainWindow = false;
     showMainWindow();
@@ -1074,27 +1041,7 @@ app.whenReady().then(async () => {
       detail: "No se eliminó ningún dato. Cierra la aplicación y vuelve a intentarlo."
     }).catch(() => {});
   }
-  if (!isolatedTestMode) {
-    initializeAutoStart();
-    configureAutoUpdater();
-    checkForUpdates();
-  }
-
-  try {
-    registerGlobalShortcuts(getShortcuts(activeUserDataPath), getShortcutMode(activeUserDataPath));
-  } catch (error) {
-    console.error("Could not register global shortcuts:", error);
-    try {
-      registerGlobalShortcuts(DEFAULT_SHORTCUTS);
-      setShortcuts(activeUserDataPath, DEFAULT_SHORTCUTS);
-      setShortcutMode(activeUserDataPath, "toggle");
-    } catch (fallbackError) {
-      console.error("Could not register default global shortcuts:", fallbackError);
-    }
-    mainWindow.webContents.once("did-finish-load", () => {
-      mainWindow.webContents.send("shortcut:error");
-    });
-  }
+  if (hasAcceptedCurrentTerms(activeUserDataPath)) activateAcceptedRuntime();
 }).catch(() => {
   console.error("Application bootstrap failed.");
   app.exit(1);
@@ -1108,6 +1055,48 @@ ipcMain.handle("clipboard:write", (_event, text) => {
 ipcMain.handle("clipboard:paste", async (_event, text) => {
   return pasteIntoActiveApp(text);
 });
+
+ipcMain.handle("delivery:commit", async (_event, text, options = {}) => {
+  const startedAt = performance.now();
+  const copy = Boolean(options.copy || options.paste);
+  const paste = Boolean(options.paste);
+  const clipboardStartedAt = performance.now();
+  if (copy) clipboard.writeText(text);
+  const clipboardMs = Math.round(performance.now() - clipboardStartedAt);
+
+  let pasteResult = { ok: false, reason: PASTE_FAILURE_REASON.NO_CAPTURE_TARGET };
+  const pasteStartedAt = performance.now();
+  if (paste) pasteResult = await pasteIntoActiveApp(text, false);
+  const pasteMs = paste ? Math.round(performance.now() - pasteStartedAt) : 0;
+  const visibleAtEpochMs = Date.now();
+
+  if (options.saveHistory !== false) historyWriteQueue.enqueue(text, options.historyLimit);
+  return {
+    pasted: paste && pasteResult.ok,
+    reason: paste ? pasteResult.reason : undefined,
+    historyQueued: options.saveHistory !== false,
+    metrics: {
+      clipboardMs,
+      focusMs: pasteResult.focusMs,
+      pasteMs,
+      historyMs: 0,
+      endToPasteMs: Number.isFinite(options.captureFinishedAtEpochMs)
+        ? Math.max(0, visibleAtEpochMs - options.captureFinishedAtEpochMs)
+        : undefined,
+      deliveryMs: Math.round(performance.now() - startedAt)
+    }
+  };
+});
+
+ipcMain.handle("metrics:record", (_event, metric) => {
+  const enrichedMetric = {
+    ...metric,
+    memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024)
+  };
+  transcriptionMetricsStore.append(enrichedMetric).catch((error) => console.error("Could not persist transcription metrics:", error));
+  return true;
+});
+ipcMain.handle("metrics:summary", () => transcriptionMetricsStore.summary());
 
 ipcMain.handle("paste:notify-permission-denied", async () => {
   await notifyPastePermissionDenied({
@@ -1137,6 +1126,52 @@ ipcMain.handle("state:get", () => readState(activeUserDataPath));
 ipcMain.handle("state:migrate-legacy", (_event, legacyState) => migrateLegacyState(activeUserDataPath, legacyState));
 ipcMain.handle("state:write", (_event, state) => writeState(activeUserDataPath, state));
 
+const LEGAL_DOCUMENTS = Object.freeze({
+  "terms:es": "TERMS.md",
+  "terms:en": "TERMS.en.md",
+  "privacy:es": "PRIVACY.md",
+  "privacy:en": "PRIVACY.en.md",
+  "licenses:es": "THIRD_PARTY_NOTICES.md",
+  "ai-act:es": "docs/AI_ACT_CLASSIFICATION.md"
+});
+
+ipcMain.handle("legal:get-status", () => getCurrentLegalStatus());
+ipcMain.handle("legal:accept-current-terms", () => {
+  acceptCurrentTerms(activeUserDataPath);
+  activateAcceptedRuntime();
+  return getCurrentLegalStatus();
+});
+ipcMain.handle("legal:decline-current-terms", () => {
+  isQuitting = true;
+  app.quit();
+  return true;
+});
+ipcMain.handle("legal:read-document", async (_event, type, language = "es") => {
+  const relativePath = LEGAL_DOCUMENTS[`${type}:${language}`];
+  if (!relativePath) throw new Error("Unsupported legal document.");
+  return {
+    type,
+    language,
+    content: await fs.readFile(path.join(__dirname, "..", relativePath), "utf8")
+  };
+});
+ipcMain.handle("legal:contact", () => shell.openExternal("mailto:legal@felipeavinzano.com"));
+
+ipcMain.handle("privacy:erase-local-personal-data", async () => {
+  if (!hasAcceptedCurrentTerms(activeUserDataPath)) throw new Error("Current Terms have not been accepted.");
+  stopShortcutMonitors();
+  globalShortcut.unregisterAll();
+  configureAutoStart(false);
+  await transcriptionService.reset();
+  closeDb();
+  await session.defaultSession.clearStorageData({ storages: ["localstorage", "indexdb"] });
+  const removed = await erasePersonalDataFiles(activeUserDataPath);
+  app.relaunch();
+  isQuitting = true;
+  app.quit();
+  return { removed };
+});
+
 ipcMain.handle("transcriptions:get-all", (_event, limit) => getAllTranscriptions(limit));
 ipcMain.handle("transcriptions:add", (_event, texto, limit) => {
   const row = insertTranscription(texto);
@@ -1149,61 +1184,55 @@ ipcMain.handle("transcriptions:trim", (_event, limit) => trimTranscriptions(limi
 ipcMain.handle("transcriptions:migrate-legacy", (_event, entries) => migrateLegacyHistory(entries));
 
 ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
-  try {
-    const startedAt = performance.now();
-    const pipe = await getTranscriberWithRetry(profileId, device);
-    const inferenceStartedAt = performance.now();
-    const samples = audio instanceof Float32Array ? audio : new Float32Array(audio);
-    const output = await pipe(samples, {
-      language,
-      task: "transcribe",
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      ...resolveWhisperProfile(profileId).generation
-    });
-    const inferenceMs = Math.round(performance.now() - inferenceStartedAt);
-    const totalMs = Math.round(performance.now() - startedAt);
-    const audioSeconds = samples.length / 16000;
-    lastTranscriptionMetrics = {
-      audioSeconds: Number(audioSeconds.toFixed(1)),
-      inferenceMs,
-      modelLoadMs: totalMs - inferenceMs,
-      realtimeFactor: Number((inferenceMs / 1000 / Math.max(audioSeconds, 0.1)).toFixed(2)),
-      totalMs
-    };
-    return { text: output.text.trim(), metrics: lastTranscriptionMetrics, device: transcriberDevice };
-  } catch (error) {
-    lastModelError = serializeModelError(error, lastModelLoadAttempts || 1);
-    throw new Error(friendlyModelError(error));
+  if (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)) {
+    throw new Error("Current Terms have not been accepted.");
   }
+  return transcriptionService.transcribe(audio, language, profileId, device);
 });
 
+ipcMain.handle("transcription:start", (_event, configuration) => {
+  if (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)) {
+    throw new Error("Current Terms have not been accepted.");
+  }
+  if (!configuration || !["auto", "transformers-js"].includes(configuration.engine || "auto")) {
+    throw new Error("El motor solicitado no está instalado o validado.");
+  }
+  return transcriptionService.start(configuration);
+});
+ipcMain.on("transcription:audio", (_event, sessionId, audio) => {
+  transcriptionService.pushAudio(sessionId, audio);
+});
+ipcMain.handle("transcription:finish", (_event, sessionId) => transcriptionService.finish(sessionId));
+ipcMain.handle("transcription:cancel", (_event, sessionId) => transcriptionService.cancel(sessionId));
+
 ipcMain.handle("models:clear", async () => {
-  await resetTranscriber();
+  await transcriptionService.reset();
   await clearModelCache(activeUserDataPath);
   return true;
 });
 
 ipcMain.handle("models:repair", async (_event, profileId, device) => {
   const profile = resolveWhisperProfile(profileId);
-  await resetTranscriber();
-  let cacheRebuilt = false;
-  try {
-    await getTranscriberWithRetry(profile.id, device, 1);
-  } catch (initialError) {
-    console.warn("Existing model cache failed validation; rebuilding it:", initialError);
-    await resetTranscriber();
-    await clearModelCache(activeUserDataPath);
-    cacheRebuilt = true;
-    await getTranscriberWithRetry(profile.id, device, 2);
-  }
+  await transcriptionService.reset();
+  await transcriptionService.prepare(profile.id, device, 1);
   const cacheDir = getModelCacheDir(activeUserDataPath);
+  const health = transcriptionService.health();
   return {
     cacheMb: Math.round(await directorySize(cacheDir) / 1024 / 1024),
-    cacheRebuilt,
-    device: transcriberDevice,
-    profile: transcriberProfile
+    cacheRebuilt: false,
+    device: health.device,
+    profile: health.profile
   };
+});
+
+ipcMain.handle("models:list-packs", () => modelPackManager.list({ verify: true }));
+ipcMain.handle("models:install-pack", async () => {
+  const selection = await dialog.showOpenDialog(mainWindow, {
+    title: "Instalar paquete de modelo offline",
+    properties: ["openDirectory"]
+  });
+  if (selection.canceled || !selection.filePaths[0]) return { canceled: true };
+  return { canceled: false, pack: await modelPackManager.install(selection.filePaths[0]) };
 });
 
 ipcMain.handle("overlay:set-state", (_event, state) => {
@@ -1229,23 +1258,28 @@ function safeBrandMigrationDiagnostics() {
 ipcMain.handle("app:diagnostics", async () => {
   const cacheDir = getModelCacheDir(activeUserDataPath);
   const memory = process.memoryUsage();
+  const transcription = transcriptionService.health();
   return {
     platform: `${process.platform} ${process.arch}`,
     version: app.getVersion(),
-    loadedWhisperProfile: transcriberProfile || loadingProfile || "none",
-    inferenceDevice: transcriberDevice || loadingDevice || "none",
-    requestedInferenceDevice: transcriberRequestedDevice || loadingDevice || "none",
-    lastDeviceFallback,
+    transcriptionEngine: transcription.engine,
+    loadedWhisperProfile: transcription.profile,
+    inferenceDevice: transcription.device,
+    requestedInferenceDevice: transcription.requestedDevice,
+    lastDeviceFallback: transcription.lastDeviceFallback,
     shortcuts: activeShortcuts || getShortcuts(activeUserDataPath),
     shortcutRegistered: { ...shortcutRegistrationStatus },
     shortcutMode: activeShortcutMode,
     shortcutMonitorReady: Object.fromEntries([...shortcutMonitors].map(([kind, state]) => [kind, state.ready])),
     memoryRssMb: Math.round(memory.rss / 1024 / 1024),
     heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
-    lastModelLoadMs,
-    lastModelLoadAttempts,
-    lastModelError,
-    lastTranscriptionMetrics,
+    lastModelLoadMs: transcription.lastModelLoadMs,
+    lastModelLoadAttempts: transcription.lastModelLoadAttempts,
+    lastModelError: transcription.lastModelError,
+    lastTranscriptionMetrics: transcription.lastTranscriptionMetrics,
+    transcriptionMetricsSummary: await transcriptionMetricsStore.summary(),
+    inputHelper: inputStrategy.health?.(),
+    modelPacks: (await modelPackManager.list()).map(({ directory, ...pack }) => pack),
     stateSchemaVersion: STATE_SCHEMA_VERSION,
     statePath: statePath(activeUserDataPath),
     modelCacheMb: Math.round(await directorySize(cacheDir) / 1024 / 1024),
@@ -1275,8 +1309,7 @@ ipcMain.handle("preferences:set-shortcut-mode", (_event, mode) => {
 });
 ipcMain.handle("preferences:get-autostart", () => {
   if (isolatedTestMode) return getAutoStartEnabled(activeUserDataPath);
-  if (process.platform !== "win32" || !app.isPackaged) return false;
-  const enabled = app.getLoginItemSettings({ path: app.getPath("exe"), args: ["--hidden"] }).openAtLogin;
+  const enabled = readAutoStart();
   setAutoStartEnabled(activeUserDataPath, enabled);
   return enabled;
 });
@@ -1305,13 +1338,24 @@ app.on("activate", () => {
   if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow();
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
   isQuitting = true;
+  if (historyWriteQueue?.pending() && !waitingForHistoryFlush) {
+    event.preventDefault();
+    waitingForHistoryFlush = true;
+    historyWriteQueue.flush().catch((error) => console.error("Could not flush transcription history:", error)).finally(() => {
+      waitingForHistoryFlush = false;
+      app.quit();
+    });
+  }
 });
 app.on("will-quit", () => {
   clearTaskbarPulse();
   stopShortcutMonitors();
   globalShortcut.unregisterAll();
+  transcriptionService?.dispose().catch((error) => console.error("Could not dispose transcription service:", error));
+  transcriptionMetricsStore?.flush().catch((error) => console.error("Could not flush transcription metrics:", error));
+  inputStrategy.dispose?.();
   closeDb();
 });
 

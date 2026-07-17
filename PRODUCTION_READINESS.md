@@ -1,6 +1,6 @@
 # Preparación Para Producción
 
-Estado actual: versión `1.1.9` en producción para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. Los instaladores se publican sin firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver advertencia correspondiente en el README y el bloqueador 1 más abajo.
+Estado actual: versión `1.1.9` técnicamente empaquetable para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64, pero **bloqueada para distribución externa** por `docs/LEGAL_RELEASE_GATE.md`. Además, los instaladores carecen de firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver el bloqueador correspondiente más abajo.
 
 ## Verificado
 
@@ -16,23 +16,24 @@ Estado actual: versión `1.1.9` en producción para Windows x64, macOS (Apple Si
 - Ejecutable empaquetado validado con Whisper Base y Whisper Large v3 Turbo.
 - Caché de modelos persistente en datos del usuario y acción de reparación.
 - Checksum SHA-256 generado automáticamente.
-- Política de privacidad, términos, licencia y avisos de terceros.
+- Borradores bilingües de Política de privacidad y Términos, licencia y avisos de terceros incluidos; pendientes de aprobación jurídica para publicación.
 - Estrategia de actualización manual y rollback documentada.
-- CI de Windows para validar y construir artefactos.
+- CI independiente de Windows, macOS y Linux para validar, ejecutar la autoprueba empaquetada y construir artefactos con sus módulos nativos.
 - Perfil de desarrollo aislado del perfil instalado y limpieza única del historial prerelease.
 - Cierre a bandeja con elección recordada, configuración visible y prueba empaquetada.
 - Workflow de firma pública que bloquea artefactos Authenticode inválidos.
 
 ## Bloqueadores Antes Del Lanzamiento Estable
 
-1. Firmar el ejecutable e instalador de Windows con un certificado de firma de código para reducir alertas de SmartScreen, y notarizar el `.dmg` de macOS para evitar el bloqueo de Gatekeeper.
-2. Ejecutar pruebas de aceptación con grabaciones reales:
+1. Aprobar completamente `docs/LEGAL_RELEASE_GATE.md`: buzón comercial, URLs HTTPS, email operativo, revisión jurídica escrita, aceptación, borrado y auditoría de red archivada.
+2. Firmar el ejecutable e instalador de Windows con un certificado de firma de código para reducir alertas de SmartScreen, y notarizar el `.dmg` de macOS para evitar el bloqueo de Gatekeeper.
+3. Ejecutar pruebas de aceptación con grabaciones reales:
    - Diferentes voces, acentos, micrófonos y niveles de ruido.
    - Dictados cortos y largos.
    - Emails, URLs, nombres propios y términos técnicos.
    - Medición de precisión, latencia y tasa de pegado exitoso.
-3. Probar en Windows 11 y en equipos adicionales con poca memoria y CPU más lenta. Windows 10 x64 ya fue validado en el entorno actual.
-4. Validar instalación sobre una versión anterior y rollback cuando exista un segundo instalador versionado.
+4. Completar la matriz física mínima: Windows 10/11, macOS Apple Silicon/Intel y Linux X11/Wayland, incluyendo equipos con poca memoria y CPU más lenta.
+5. Validar instalación sobre una versión anterior y rollback cuando exista un segundo instalador versionado.
 
 ## Problemas Conocidos
 

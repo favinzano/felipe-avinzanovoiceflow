@@ -43,6 +43,7 @@ assert.throws(
 const nodeScripts = [
   'verify-release.cjs',
   'verify-packaged-models.cjs',
+  'verify-packaged-platform.cjs',
   'generate-release-notes.cjs',
 ];
 for (const name of nodeScripts) {
@@ -103,6 +104,22 @@ for (const [source, name] of [[signedWorkflow, 'signed release workflow'], [wind
   assert.match(source, /\$\{\{\s*env\.PRODUCT_SLUG\s*\}\}/, `${name} derives artifact patterns from the canonical slug`);
 }
 
+const platformWorkflows = [
+  [workflow, 'multiplatform release workflow', ['win32', 'darwin', 'linux']],
+  [windowsCheckWorkflow, 'Windows release check workflow', ['win32']],
+  [fs.readFileSync(path.join(root, '.github/workflows/macos-release-check.yml'), 'utf8'), 'macOS release check workflow', ['darwin']],
+  [fs.readFileSync(path.join(root, '.github/workflows/linux-release-check.yml'), 'utf8'), 'Linux release check workflow', ['linux']]
+];
+for (const [source, name, platforms] of platformWorkflows) {
+  assert.match(source, /verify-packaged-platform\.cjs/, `${name} verifies packaged native bindings`);
+  for (const platform of platforms) {
+    assert.match(source, new RegExp(`--platform=${platform}`), `${name} verifies ${platform}`);
+  }
+  if (platforms.includes('darwin') || platforms.includes('linux')) {
+    assert.match(source, /--self-test-desktop-bridge/, `${name} runs the packaged desktop bridge self-test`);
+  }
+}
+
 const trayTest = fs.readFileSync(path.join(__dirname, 'test-tray.ps1'), 'utf8');
 assert.equal((trayTest.match(/--test-user-data=`"\$/g) || []).length, 2, 'both tray launches quote explicit isolated app roots');
 assert.doesNotMatch(trayTest, /--user-data-dir|\$env:APPDATA/i, 'tray QA cannot fall back to Chromium-only or live AppData paths');
@@ -151,7 +168,8 @@ assert.match(mainSource, /const allowTestInstance = process\.argv\.includes\("--
 assert.match(mainSource, /app\.setPath\("userData", targetUserDataPath\)/);
 assert.match(mainSource, /app\.setPath\("sessionData", initialSessionDataPath\)/);
 assert.match(mainSource, /const migrationPromise = isolatedPaths/);
-assert.match(mainSource, /if \(!isolatedTestMode\)\s*\{\s*initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
+assert.match(mainSource, /function activateAcceptedRuntime\(\)[\s\S]*?hasAcceptedCurrentTerms\(activeUserDataPath\)[\s\S]*?initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
+assert.match(mainSource, /if \(hasAcceptedCurrentTerms\(activeUserDataPath\)\) activateAcceptedRuntime\(\);/);
 
 if (process.platform === 'win32') {
   const signatureProbe = spawnSync('powershell', [

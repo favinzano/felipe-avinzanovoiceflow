@@ -32,6 +32,8 @@ jobs:
       - run: npm audit --omit=dev --audit-level=critical
       - run: npm run release:win
       - run: npm run release:verify
+      - name: Verify packaged Windows native runtime
+        run: node scripts/verify-packaged-platform.cjs "--resources=release/win-unpacked/resources" "--platform=win32" "--arch=x64"
       - run: npm run release:test-models
       - run: npm run release:test-installer
       - run: npm run release:test-tray

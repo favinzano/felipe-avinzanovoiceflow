@@ -73,6 +73,12 @@ function verifyRelease({ root = path.join(__dirname, '..'), releaseFlavor = proc
     'src/brand-config.json',
     'assets/fonts/DMSerifDisplay-Regular.ttf',
     'assets/fonts/Geist-Variable.woff2',
+    'TERMS.md',
+    'TERMS.en.md',
+    'PRIVACY.md',
+    'PRIVACY.en.md',
+    'THIRD_PARTY_NOTICES.md',
+    'docs/AI_ACT_CLASSIFICATION.md',
   ]) {
     assert.ok(packagedFiles.includes(required), `Falta el recurso empaquetado en app.asar: ${required}`);
   }

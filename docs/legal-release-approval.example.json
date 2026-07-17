@@ -1,0 +1,33 @@
+{
+  "status": "blocked",
+  "appVersion": "1.1.9",
+  "termsVersion": "2026-07-17-beta-1",
+  "legalEmail": "legal@felipeavinzano.com",
+  "legalEmailCheck": {
+    "completedAt": "REPLACE WITH ISO DATE",
+    "evidenceReference": "REPLACE WITH ARCHIVED EVIDENCE REFERENCE"
+  },
+  "commercialMailbox": "REPLACE WITH CONFIRMED COMMERCIAL MAILBOX",
+  "publicUrls": {
+    "termsEs": "https://felipeavinzano.com/voiceflow/legal/terminos",
+    "privacyEs": "https://felipeavinzano.com/voiceflow/legal/privacidad",
+    "termsEn": "https://felipeavinzano.com/voiceflow/legal/en/terms",
+    "privacyEn": "https://felipeavinzano.com/voiceflow/legal/en/privacy",
+    "contact": "https://felipeavinzano.com/voiceflow/legal/contacto"
+  },
+  "attorneyReview": {
+    "reviewer": "REPLACE WITH REVIEWER",
+    "approvedAt": "REPLACE WITH ISO DATE",
+    "evidenceReference": "REPLACE WITH ARCHIVED EVIDENCE REFERENCE",
+    "floridaConsumerTechnology": false,
+    "europeanConsumers": false,
+    "spanishAndEnglish": false
+  },
+  "networkAudit": {
+    "completedAt": "REPLACE WITH ISO DATE",
+    "evidenceReference": "REPLACE WITH ARCHIVED EVIDENCE REFERENCE",
+    "systems": [],
+    "zeroUserContentMatches": false,
+    "onlyInventoriedHosts": false
+  }
+}

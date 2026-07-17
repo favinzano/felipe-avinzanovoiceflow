@@ -1,6 +1,8 @@
 # felipe avinzano VoiceFlow
 
-Aplicación de escritorio multiplataforma (Windows, macOS y Linux) para convertir voz en texto con Whisper ejecutado 100% localmente. El audio y las transcripciones nunca salen del equipo: no hay cuentas, autenticación ni servicios de IA en la nube.
+> **Distribución externa bloqueada:** la implementación técnica está lista para revisión, pero `docs/LEGAL_RELEASE_GATE.md` exige buzón comercial, URLs legales públicas, auditoría de red y aprobación escrita de abogado antes de abrir la beta.
+
+Aplicación de escritorio multiplataforma (Windows, macOS y Linux) para convertir voz en texto con Whisper ejecutado localmente. VoiceFlow no envía el audio ni las transcripciones: no hay cuentas, autenticación, telemetría ni servicios de IA en la nube. La aplicación sí usa red para descargar modelos desde Hugging Face, comprobar actualizaciones en GitHub y abrir soporte cuando el usuario lo solicita.
 
 ## Instalación
 
@@ -28,6 +30,7 @@ El archivo `Iniciar felipe avinzano VoiceFlow.bat` se mantiene únicamente para 
 - Cinco idiomas de transcripción: español, inglés, francés, alemán y portugués.
 - Inferencia por CPU o DirectML experimental en Windows, con recuperación automática a CPU.
 - Atajos globales configurables, en dos modos: alternar (inicia/detiene con cada pulsación) o mantener presionado (solo Windows).
+- Inicio automático nativo al iniciar sesión en Windows, macOS y Linux.
 - Pegado automático en la app activa o copia al portapapeles, con reintento y aviso explícito si el pegado falla.
 - Limpieza opcional del texto transcrito y diccionario personal de reemplazos.
 - Historial local configurable, buscable y exportable.
@@ -49,7 +52,7 @@ La primera transcripción de cada modo descarga su modelo Whisper. Después qued
 
 Si una descarga queda incompleta o dañada, abre `Soporte` y selecciona `Reparar modelos`.
 
-Antes de dar por cerrado un cambio, corre `npm test`.
+Antes de dar por cerrado un cambio, corre `npm test`. Antes de distribuir una beta externa, la puerta `docs/LEGAL_RELEASE_GATE.md` debe estar aprobada y acompañada por la evidencia indicada.
 
 ## Estado de producción
 

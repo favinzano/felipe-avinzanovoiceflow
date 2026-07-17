@@ -1,0 +1,17 @@
+{
+  "baselineWer": 0.1,
+  "candidates": [
+    {
+      "id": "candidate-id",
+      "platform": "windows",
+      "wer": 0.1,
+      "packageBytes": 1000000000,
+      "peakMemoryMb": 2000,
+      "consecutiveSuccessfulDictations": 100,
+      "offline": true,
+      "runs": [
+        { "audioMs": 5000, "endToPasteMs": 1000, "success": true }
+      ]
+    }
+  ]
+}

@@ -10,8 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  legal-release-gate:
+    name: Verify legal release approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Block unapproved public release
+        run: npm run release:legal-gate
+
   build-windows:
     name: Build Windows x64 (${{ matrix.target }})
+    needs: legal-release-gate
     runs-on: windows-latest
     timeout-minutes: 60
     strategy:
@@ -109,6 +123,11 @@ jobs:
             throw "No se genero el instalador esperado: $installer"
           }
 
+          node scripts/verify-packaged-platform.cjs "--resources=release/win-unpacked/resources" "--platform=win32" "--arch=x64"
+          if ($LASTEXITCODE -ne 0) {
+            throw "El paquete Windows no contiene todos los componentes nativos requeridos."
+          }
+
           $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $env:INSTALLER_NAME" | Set-Content -LiteralPath "$installer.sha256" -Encoding ascii
 
@@ -126,6 +145,7 @@ jobs:
 
   build-macos:
     name: Build macOS (arm64 + x64)
+    needs: legal-release-gate
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -176,8 +196,20 @@ jobs:
             test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle $ARCH." >&2; exit 1; }
             ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
             test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin ($ARCH): $ONNX_DARWIN" >&2; exit 1; }
+            node scripts/verify-packaged-platform.cjs "--resources=$APP/Contents/Resources" --platform=darwin "--arch=$ARCH"
             echo "macOS package verified for $ARCH: $DMG"
           done
+
+      - name: Run packaged macOS desktop bridge self-test
+        run: |
+          set -euo pipefail
+          HOST_ARCH=$(uname -m)
+          if [ "$HOST_ARCH" = "x86_64" ]; then HOST_ARCH="x64"; fi
+          if [ "$HOST_ARCH" = "x64" ]; then APP_DIR="release/mac"; else APP_DIR="release/mac-$HOST_ARCH"; fi
+          APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' | head -n1)
+          EXECUTABLE=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f | head -n1)
+          SELF_TEST_ROOT=$(mktemp -d)
+          "$EXECUTABLE" --disable-gpu --self-test-desktop-bridge "--self-test-user-data=$SELF_TEST_ROOT"
 
       - name: Upload macOS installers
         uses: actions/upload-artifact@v4
@@ -191,6 +223,7 @@ jobs:
 
   build-linux:
     name: Build Linux (x64 AppImage)
+    needs: legal-release-gate
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -230,6 +263,9 @@ jobs:
           test -f "$EXTRACT_DIR/squashfs-root/resources/app.asar" || { echo "Falta app.asar dentro del AppImage." >&2; exit 1; }
           ONNX_LINUX="$EXTRACT_DIR/squashfs-root/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/linux"
           test -d "$ONNX_LINUX" || { echo "Falta el binario nativo de ONNX Runtime para linux: $ONNX_LINUX" >&2; exit 1; }
+          node scripts/verify-packaged-platform.cjs "--resources=$EXTRACT_DIR/squashfs-root/resources" --platform=linux --arch=x64
+          SELF_TEST_ROOT=$(mktemp -d)
+          xvfb-run -a "$EXTRACT_DIR/squashfs-root/AppRun" --no-sandbox --disable-gpu --self-test-desktop-bridge "--self-test-user-data=$SELF_TEST_ROOT"
           echo "Linux package verified: $APPIMAGE"
 
       - name: Upload Linux installer

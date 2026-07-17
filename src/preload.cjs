@@ -13,9 +13,13 @@ const rendererBrand = Object.freeze({
   copper: readEncodedArgument("--voiceflow-brand-copper=")
 });
 const appVersion = readEncodedArgument("--voiceflow-app-version=");
+const runtimePlatform = readEncodedArgument("--voiceflow-platform=");
+const runtimeCapabilities = Object.freeze(JSON.parse(readEncodedArgument("--voiceflow-capabilities=")));
 const preserveLegacyStorageArgument = process.argv.filter((value) => value.startsWith("--voiceflow-preserve-legacy-storage=")).at(-1);
 const rendererRuntime = Object.freeze({
   isPackaged: !process.defaultApp,
+  platform: runtimePlatform,
+  capabilities: runtimeCapabilities,
   preserveLegacyStorage: preserveLegacyStorageArgument === "--voiceflow-preserve-legacy-storage=1"
 });
 
@@ -39,12 +43,35 @@ contextBridge.exposeInMainWorld("voiceAPI", {
     migrateLegacy: (entries) => ipcRenderer.invoke("transcriptions:migrate-legacy", entries)
   },
   transcribe: (audio, language, profile, device) => ipcRenderer.invoke("transcription:run", audio, language, profile, device),
+  transcription: {
+    start: (configuration) => ipcRenderer.invoke("transcription:start", configuration),
+    pushAudio: (sessionId, audio) => ipcRenderer.send("transcription:audio", sessionId, audio),
+    finish: (sessionId) => ipcRenderer.invoke("transcription:finish", sessionId),
+    cancel: (sessionId) => ipcRenderer.invoke("transcription:cancel", sessionId)
+  },
+  deliver: (text, options) => ipcRenderer.invoke("delivery:commit", text, options),
+  metrics: {
+    record: (metric) => ipcRenderer.invoke("metrics:record", metric),
+    summary: () => ipcRenderer.invoke("metrics:summary")
+  },
   overlay: (state) => ipcRenderer.invoke("overlay:set-state", state),
   sendAudioData: (frequencyData) => ipcRenderer.send("audio-data-update", frequencyData),
   taskbar: (state) => ipcRenderer.invoke("taskbar:set-state", state),
   diagnostics: () => ipcRenderer.invoke("app:diagnostics"),
   clearModels: () => ipcRenderer.invoke("models:clear"),
   repairModels: (profile, device) => ipcRenderer.invoke("models:repair", profile, device),
+  modelPacks: {
+    list: () => ipcRenderer.invoke("models:list-packs"),
+    install: () => ipcRenderer.invoke("models:install-pack")
+  },
+  legal: {
+    getStatus: () => ipcRenderer.invoke("legal:get-status"),
+    acceptCurrentTerms: () => ipcRenderer.invoke("legal:accept-current-terms"),
+    declineCurrentTerms: () => ipcRenderer.invoke("legal:decline-current-terms"),
+    readDocument: (type, language) => ipcRenderer.invoke("legal:read-document", type, language),
+    contact: () => ipcRenderer.invoke("legal:contact")
+  },
+  eraseLocalPersonalData: () => ipcRenderer.invoke("privacy:erase-local-personal-data"),
   getCloseBehavior: () => ipcRenderer.invoke("app:get-close-behavior"),
   setCloseBehavior: (behavior) => ipcRenderer.invoke("app:set-close-behavior", behavior),
   getAutoStart: () => ipcRenderer.invoke("preferences:get-autostart"),
