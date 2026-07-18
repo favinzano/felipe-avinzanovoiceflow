@@ -3,7 +3,7 @@
 > Identidad anterior: NextStepAI Voice. Los nombres conservados en este documento corresponden a artefactos publicados antes del cambio a felipe avinzano VoiceFlow.
 
 Última actualización: 9 de julio de 2026
-Aplicable a: felipe avinzano VoiceFlow `1.1.10` para Windows x64, macOS y Linux
+Aplicable a: felipe avinzano VoiceFlow `1.1.11` para Windows x64, macOS y Linux
 
 felipe avinzano VoiceFlow incluye, utiliza o descarga componentes de terceros. Cada
 componente permanece sujeto a su licencia original. Estos avisos no modifican
@@ -138,7 +138,7 @@ pueden obtenerse y reconstruirse desde sus proyectos originales:
 - libvips: <https://github.com/libvips/libvips>
 
 Para solicitar una copia de los textos de licencia incluidos con felipe
-avinzano VoiceFlow `1.1.10` o reportar una omisión, abre una incidencia en:
+avinzano VoiceFlow `1.1.11` o reportar una omisión, abre una incidencia en:
 
 <https://github.com/favinzano/felipe-avinzanovoiceflow/issues>
 
