@@ -3,8 +3,10 @@ const {
   ACCURACY_DEFAULT_MARKER,
   clearMigratedLegacyStorage,
   initializeProductionProfile,
+  PERF_DEFAULT_MARKER,
   PRODUCTION_PROFILE_MARKER,
-  upgradeAccuracyDefault
+  upgradeAccuracyDefault,
+  upgradePerfDefault
 } = require("./data-migrations.cjs");
 
 function createStorage(values = {}) {
@@ -50,4 +52,38 @@ const targetStorage = createStorage({ "voice-settings": "settings", "voice-histo
 assert.deepEqual(clearMigratedLegacyStorage(targetStorage, false), ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]);
 for (const key of ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]) assert.equal(targetStorage.has(key), false);
 
-console.log("Data migrations: 13 checks passed.");
+const perfUntouched = createStorage({});
+const migratedSettings = upgradePerfDefault(perfUntouched, { whisperProfile: "accurate", inferenceDevice: "cpu", language: "spanish" });
+assert.equal(migratedSettings.whisperProfile, "balanced");
+assert.equal(migratedSettings.inferenceDevice, "dml");
+assert.equal(migratedSettings.language, "spanish");
+assert.equal(perfUntouched.getItem(PERF_DEFAULT_MARKER), "initialized");
+
+const perfUntouchedNoKeys = createStorage({});
+const migratedFromEmpty = upgradePerfDefault(perfUntouchedNoKeys, {});
+assert.equal(migratedFromEmpty.whisperProfile, "balanced");
+assert.equal(migratedFromEmpty.inferenceDevice, "dml");
+
+const perfDeviceChanged = createStorage({});
+const notMigratedDevice = upgradePerfDefault(perfDeviceChanged, { whisperProfile: "accurate", inferenceDevice: "dml" });
+assert.equal(notMigratedDevice.inferenceDevice, "dml");
+assert.equal(notMigratedDevice.whisperProfile, "accurate");
+
+const perfProfileChanged = createStorage({});
+const notMigratedProfile = upgradePerfDefault(perfProfileChanged, { whisperProfile: "fast", inferenceDevice: "cpu" });
+assert.equal(notMigratedProfile.whisperProfile, "fast");
+assert.equal(notMigratedProfile.inferenceDevice, "cpu");
+
+const perfAlreadyMarked = createStorage({ [PERF_DEFAULT_MARKER]: "initialized" });
+const notReapplied = upgradePerfDefault(perfAlreadyMarked, { whisperProfile: "accurate", inferenceDevice: "cpu" });
+assert.equal(notReapplied.whisperProfile, "accurate");
+assert.equal(notReapplied.inferenceDevice, "cpu");
+
+const perfIdempotent = createStorage({});
+const firstRun = upgradePerfDefault(perfIdempotent, { whisperProfile: "accurate", inferenceDevice: "cpu" });
+assert.equal(firstRun.whisperProfile, "balanced");
+const secondRunFreshObject = upgradePerfDefault(perfIdempotent, { whisperProfile: "accurate", inferenceDevice: "cpu" });
+assert.equal(secondRunFreshObject.whisperProfile, "accurate");
+assert.equal(secondRunFreshObject.inferenceDevice, "cpu");
+
+console.log("Data migrations: 28 checks passed.");

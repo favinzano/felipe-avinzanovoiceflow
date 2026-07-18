@@ -1,5 +1,6 @@
 const PRODUCTION_PROFILE_MARKER = "voice-production-profile-v1";
 const ACCURACY_DEFAULT_MARKER = "voice-accuracy-default-v2";
+const PERF_DEFAULT_MARKER = "voice-perf-default-v1";
 const LEGACY_STORAGE_KEYS = Object.freeze(["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]);
 
 function clearMigratedLegacyStorage(storage, preserveLegacyStorage) {
@@ -30,10 +31,24 @@ function upgradeAccuracyDefault(storage) {
   return true;
 }
 
+// Operates on the persisted-state settings object directly (not a localStorage JSON
+// string like upgradeAccuracyDefault) because settings now live in voice-state.json;
+// the marker itself still lives in localStorage for consistency with the other migrations.
+function upgradePerfDefault(storage, settings = {}) {
+  if (storage.getItem(PERF_DEFAULT_MARKER)) return settings;
+  storage.setItem(PERF_DEFAULT_MARKER, "initialized");
+  const deviceUntouched = !settings.inferenceDevice || settings.inferenceDevice === "cpu";
+  const profileUntouched = !settings.whisperProfile || settings.whisperProfile === "accurate";
+  if (!deviceUntouched || !profileUntouched) return settings;
+  return { ...settings, inferenceDevice: "dml", whisperProfile: "balanced" };
+}
+
 module.exports = {
   ACCURACY_DEFAULT_MARKER,
   clearMigratedLegacyStorage,
   initializeProductionProfile,
+  PERF_DEFAULT_MARKER,
   PRODUCTION_PROFILE_MARKER,
-  upgradeAccuracyDefault
+  upgradeAccuracyDefault,
+  upgradePerfDefault
 };
