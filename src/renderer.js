@@ -217,6 +217,10 @@ const elements = {
   acceptTermsCheckbox: $("#acceptTermsCheckbox"),
   acceptTermsButton: $("#acceptTermsButton"),
   declineTermsButton: $("#declineTermsButton"),
+  gateTermsEsButton: $("#gateTermsEsButton"),
+  gateTermsEnButton: $("#gateTermsEnButton"),
+  gatePrivacyEsButton: $("#gatePrivacyEsButton"),
+  gatePrivacyEnButton: $("#gatePrivacyEnButton"),
   legalDocumentModal: $("#legalDocumentModal"),
   legalDocumentTitle: $("#legalDocumentTitle"),
   legalDocumentContent: $("#legalDocumentContent"),
@@ -1158,6 +1162,7 @@ async function initializeApp() {
   await updateMicrophones();
   const modifier = voiceAPI.runtime.platform === "darwin" ? "Cmd" : "Ctrl";
   setStatus("idle", `Haz clic o usa ${modifier} + Shift + Espacio.`);
+  document.documentElement.dataset.voiceflowInitialized = "true";
 }
 
 initializeApp().catch((error) => {

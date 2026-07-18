@@ -64,6 +64,22 @@ assert.doesNotMatch(overlayPreload, /preserveLegacyStorage/, "overlay preload re
 assert.match(renderer, /clearMigratedLegacyStorage\(localStorage,\s*voiceAPI\.runtime\.preserveLegacyStorage\)/, "renderer delegates rollback-safe cleanup to the tested helper");
 assert.doesNotMatch(renderer, /localStorage\.removeItem\(["']voice-(?:settings|history|dictionary|microphone)["']\)/, "renderer never removes migration keys directly");
 
+const elementBindingsBlock = renderer.match(/const elements = \{([\s\S]*?)\n\};/);
+assert.ok(elementBindingsBlock, "main renderer declares its DOM element bindings");
+const elementBindings = new Map(
+  [...elementBindingsBlock[1].matchAll(/^\s*([A-Za-z]\w*):\s*\$\(["']#([^"']+)["']\)/gm)]
+    .map((match) => [match[1], match[2]])
+);
+const referencedElementKeys = [...new Set([...renderer.matchAll(/\belements\.([A-Za-z]\w*)/g)].map((match) => match[1]))].sort();
+assert.deepEqual(
+  referencedElementKeys.filter((key) => !elementBindings.has(key)),
+  [],
+  "every main-renderer elements.* reference has a declared DOM binding"
+);
+for (const [key, id] of elementBindings) {
+  assert.match(indexHtml, new RegExp(`id=["']${id}["']`), `${key} binds an element that exists in index.html`);
+}
+
 assertRendererBrand(preload, "main preload");
 assertRendererBrand(overlayPreload, "overlay preload");
 

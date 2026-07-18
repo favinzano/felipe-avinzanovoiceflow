@@ -8,6 +8,13 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.11] - 2026-07-17
+
+### Corregido
+
+- Restaurado el arranque interactivo del renderer: los botones legales de la pantalla inicial ahora están vinculados antes de registrar sus eventos.
+- Añadida una autoprueba que carga la interfaz real y bloquea futuros releases ante errores de JavaScript o inicialización incompleta.
+
 ## [1.1.10] - 2026-07-17
 
 ### Corregido

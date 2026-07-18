@@ -890,6 +890,7 @@ async function runAudioWorkletSelfTest() {
 async function runDesktopBridgeSelfTest() {
   if (!process.argv.includes("--self-test-desktop-bridge")) return false;
   const preloadErrors = [];
+  const rendererErrors = [];
   const testWindow = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -905,20 +906,35 @@ async function runDesktopBridgeSelfTest() {
   testWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
     preloadErrors.push(`${preloadPath}: ${error?.message || error}`);
   });
+  testWindow.webContents.on("console-message", (_event, details) => {
+    if (details?.level === "error") {
+      rendererErrors.push(`${details.sourceId || "renderer"}:${details.lineNumber || 0} ${details.message || "unknown error"}`);
+    }
+  });
   try {
     await testWindow.loadFile(path.join(__dirname, "..", "index.html"));
-    const result = await testWindow.webContents.executeJavaScript(`({
-      hasVoiceAPI: Boolean(window.voiceAPI),
-      displayName: window.voiceAPI?.brand?.displayName,
-      canTranscribe: typeof window.voiceAPI?.transcribe === "function",
-      canReadState: typeof window.voiceAPI?.getState === "function"
-    })`);
+    const result = await testWindow.webContents.executeJavaScript(`(async () => {
+      const deadline = Date.now() + 10000;
+      while (document.documentElement.dataset.voiceflowInitialized !== "true" && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return {
+        hasVoiceAPI: Boolean(window.voiceAPI),
+        displayName: window.voiceAPI?.brand?.displayName,
+        canTranscribe: typeof window.voiceAPI?.transcribe === "function",
+        canReadState: typeof window.voiceAPI?.getState === "function",
+        initialized: document.documentElement.dataset.voiceflowInitialized === "true"
+      };
+    })()`);
     if (preloadErrors.length) throw new Error(`Preload failed: ${preloadErrors.join(" | ")}`);
     if (!result.hasVoiceAPI || !result.canTranscribe || !result.canReadState) {
       throw new Error(`Desktop bridge unavailable: ${JSON.stringify(result)}`);
     }
     if (result.displayName !== brand.displayName) {
       throw new Error(`Desktop bridge brand mismatch: ${result.displayName}`);
+    }
+    if (!result.initialized || rendererErrors.length) {
+      throw new Error(`Renderer startup failed: ${rendererErrors.join(" | ") || "initialization marker was not set"}`);
     }
   } finally {
     testWindow.destroy();
