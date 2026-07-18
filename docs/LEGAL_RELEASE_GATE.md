@@ -1,8 +1,8 @@
 # Puerta legal de publicación
 
-Estado al 17 de julio de 2026: **EXCEPCIÓN TEMPORAL DEL PROPIETARIO PARA 1.1.9**.
+Estado al 17 de julio de 2026: **EXCEPCIÓN TEMPORAL DEL PROPIETARIO PARA 1.1.10**.
 
-Felipe Avinzano autorizó expresamente continuar con el merge y publicar `latest` para la versión 1.1.9, asumiendo la responsabilidad por los requisitos externos aún pendientes y por los artefactos sin firma. La excepción está registrada en `docs/legal-release-approval.json`, se limita a 1.1.9 y no constituye aprobación jurídica ni cierre de los puntos siguientes.
+Felipe Avinzano autorizó expresamente continuar con el merge y publicar `latest` para la versión 1.1.10, asumiendo la responsabilidad por los requisitos externos aún pendientes y por los artefactos sin firma. La excepción está registrada en `docs/legal-release-approval.json`, se limita a 1.1.10 y no constituye aprobación jurídica ni cierre de los puntos siguientes.
 
 El código contiene los controles técnicos, pero ninguna build puede ponerse a disposición de usuarios externos hasta cerrar y archivar todos los elementos siguientes.
 

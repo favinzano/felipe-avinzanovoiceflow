@@ -8,6 +8,22 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.10] - 2026-07-17
+
+### Corregido
+
+- Igualada la experiencia de inicio automático, atajos, pegado y puente de escritorio entre Windows, macOS y Linux.
+- Endurecida la transcripción offline para impedir fallbacks de modelos empaquetados hacia ubicaciones remotas.
+
+### Añadido
+
+- Validación de paquetes nativos, modelos locales y autopruebas del puente de escritorio en las tres plataformas.
+- Matrices de release deterministas para Windows Legacy/AVX2, macOS arm64/x64 y Linux x64.
+
+### Publicación
+
+- Registrada la excepción temporal del propietario para publicar 1.1.10 como `latest` con requisitos legales, operativos y de firma aún pendientes.
+
 ## [1.1.9] - 2026-07-11
 
 ### Corregido
