@@ -172,6 +172,8 @@ assert.match(mainSource, /app\.setPath\("sessionData", initialSessionDataPath\)/
 assert.match(mainSource, /const migrationPromise = isolatedPaths/);
 assert.match(mainSource, /function activateAcceptedRuntime\(\)[\s\S]*?hasAcceptedCurrentTerms\(activeUserDataPath\)[\s\S]*?initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
 assert.match(mainSource, /if \(hasAcceptedCurrentTerms\(activeUserDataPath\)\) activateAcceptedRuntime\(\);/);
+assert.match(mainSource, /show:\s*!startHidden\s*\|\|\s*\(!isolatedTestMode\s*&&\s*!hasAcceptedCurrentTerms\(activeUserDataPath\)\)/, 'isolated tray QA may start hidden while production still surfaces unaccepted Terms');
+assert.match(mainSource, /if \(!isolatedTestMode\s*&&\s*!hasAcceptedCurrentTerms\(activeUserDataPath\)\)\s*\{/, 'isolated tray QA may exercise close-to-tray while production still exits before Terms acceptance');
 
 if (process.platform === 'win32') {
   const signatureProbe = spawnSync('powershell', [

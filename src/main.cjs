@@ -596,7 +596,7 @@ function checkForUpdates(interactive = false) {
 
 async function handleWindowClose(event) {
   if (isQuitting) return;
-  if (!hasAcceptedCurrentTerms(activeUserDataPath)) {
+  if (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)) {
     isQuitting = true;
     app.quit();
     return;
@@ -709,7 +709,7 @@ function rendererBrandArguments() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    show: !startHidden || !hasAcceptedCurrentTerms(activeUserDataPath),
+    show: !startHidden || (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)),
     width: 1060,
     height: 720,
     minWidth: 860,
