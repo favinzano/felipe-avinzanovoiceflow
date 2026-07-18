@@ -1,5 +1,7 @@
 # Gate De Entrega Para Beta Testers
 
+> Excepción 1.1.9: el propietario autorizó el lanzamiento público `latest` antes de cerrar esta matriz y asumió los riesgos pendientes. La autorización auditable está en `docs/legal-release-approval.json` y no se hereda a otra versión.
+
 La entrega beta externa queda aprobada solo cuando se cumplen todos los gates.
 
 ## 1. Firma De Codigo

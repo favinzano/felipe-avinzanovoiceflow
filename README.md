@@ -1,6 +1,6 @@
 # felipe avinzano VoiceFlow
 
-> **Distribución externa bloqueada:** la implementación técnica está lista para revisión, pero `docs/LEGAL_RELEASE_GATE.md` exige buzón comercial, URLs legales públicas, auditoría de red y aprobación escrita de abogado antes de abrir la beta.
+> **Excepción temporal para 1.1.9:** el propietario autorizó expresamente el lanzamiento público de esta versión y asumió los requisitos externos todavía pendientes. Esta excepción no equivale a aprobación jurídica y no se aplica a versiones posteriores; consulta `docs/LEGAL_RELEASE_GATE.md`.
 
 Aplicación de escritorio multiplataforma (Windows, macOS y Linux) para convertir voz en texto con Whisper ejecutado localmente. VoiceFlow no envía el audio ni las transcripciones: no hay cuentas, autenticación, telemetría ni servicios de IA en la nube. La aplicación sí usa red para descargar modelos desde Hugging Face, comprobar actualizaciones en GitHub y abrir soporte cuando el usuario lo solicita.
 

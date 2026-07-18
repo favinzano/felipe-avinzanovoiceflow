@@ -1,5 +1,5 @@
 {
-  "status": "blocked",
+  "status": "owner_override",
   "appVersion": "1.1.9",
   "termsVersion": "2026-07-17-beta-1",
   "legalEmail": "legal@felipeavinzano.com",
@@ -29,5 +29,15 @@
     "systems": [],
     "zeroUserContentMatches": false,
     "onlyInventoriedHosts": false
+  },
+  "ownerOverride": {
+    "authorizedBy": "Felipe Avinzano",
+    "authorizedAt": "2026-07-17T21:32:07.9773509-04:00",
+    "scopeVersion": "1.1.9",
+    "reason": "El propietario solicita continuar inmediatamente con el merge y la publicación latest y asume la responsabilidad por los requisitos externos aún pendientes.",
+    "acknowledgesIncompleteLegalReview": true,
+    "acknowledgesUnverifiedOperationalRequirements": true,
+    "acknowledgesUnsignedArtifacts": true,
+    "authorizesPublicLatestRelease": true
   }
 }

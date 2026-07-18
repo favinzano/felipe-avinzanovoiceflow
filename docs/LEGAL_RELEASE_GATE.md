@@ -1,6 +1,8 @@
 # Puerta legal de publicación
 
-Estado al 17 de julio de 2026: **BLOQUEADA para beta pública**.
+Estado al 17 de julio de 2026: **EXCEPCIÓN TEMPORAL DEL PROPIETARIO PARA 1.1.9**.
+
+Felipe Avinzano autorizó expresamente continuar con el merge y publicar `latest` para la versión 1.1.9, asumiendo la responsabilidad por los requisitos externos aún pendientes y por los artefactos sin firma. La excepción está registrada en `docs/legal-release-approval.json`, se limita a 1.1.9 y no constituye aprobación jurídica ni cierre de los puntos siguientes.
 
 El código contiene los controles técnicos, pero ninguna build puede ponerse a disposición de usuarios externos hasta cerrar y archivar todos los elementos siguientes.
 
@@ -15,7 +17,7 @@ El código contiene los controles técnicos, pero ninguna build puede ponerse a 
   - `https://felipeavinzano.com/voiceflow/legal/contacto`
 - [ ] Confirmar que `legal@felipeavinzano.com` recibe y conserva solicitudes, avisos de disputa y opt-outs.
 - [ ] Obtener y archivar aprobación escrita de un abogado de tecnología/consumo con experiencia en Florida, arbitraje de consumidores y oferta a consumidores europeos para ambos idiomas, `docs/GDPR_ASSESSMENT.md`, la clasificación del AI Act y el flujo de aceptación.
-- [ ] Sustituir este estado por **APROBADA**, con fecha, versión, nombre del abogado/revisor y ubicación de la evidencia.
+- [ ] Sustituir la excepción temporal por **APROBADA**, con fecha, versión, nombre del abogado/revisor y ubicación de la evidencia.
 - [ ] Crear `docs/legal-release-approval.json` a partir del ejemplo y completar evidencia verificable. El workflow de release ejecuta `npm run release:legal-gate`, comprueba que la dirección figure en los cuatro documentos y valida en vivo las cinco URLs; mientras falte o falle, no construye ni publica una release por tag.
 
 ## Validación técnica obligatoria

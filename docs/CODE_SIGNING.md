@@ -1,5 +1,7 @@
 # Firma Authenticode Para Windows
 
+> Excepción 1.1.9: Felipe Avinzano autorizó publicar esta versión como `latest` aun con artefactos sin firma y asumió expresamente ese riesgo. La excepción queda limitada a 1.1.9 en `docs/legal-release-approval.json`; las reglas de firma siguientes continúan vigentes para versiones posteriores.
+
 felipe avinzano VoiceFlow usa firma Authenticode con un certificado de firma de codigo `.pfx`, SHA-256 y timestamp RFC 3161.
 
 ## Configuracion Del Certificado
@@ -72,4 +74,5 @@ Antes de entregar binarios a testers:
    `.sha256`, `.blockmap` y `latest.yml`.
 
 Los releases sin firma deben permanecer marcados como pre-release y no deben
-usarse como canal de actualizacion automatica.
+usarse como canal de actualizacion automatica, salvo la excepción explícita y
+limitada a una versión registrada por el propietario.

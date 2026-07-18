@@ -37,16 +37,30 @@ async function run() {
   const approval = JSON.parse(fs.readFileSync(approvalPath, "utf8"));
   const packageJson = JSON.parse(read("package.json"));
 
-  assert.equal(approval.status, "approved", "Legal release status must be approved.");
+  assert.ok(["approved", "owner_override"].includes(approval.status), "Legal release status must be approved or carry an explicit owner override.");
   assert.equal(approval.appVersion, packageJson.version, "Approval appVersion must match package.json.");
   assert.equal(approval.termsVersion, termsVersion, "Approval Terms version is stale.");
   assert.equal(approval.legalEmail, "legal@felipeavinzano.com", "Legal contact email does not match the product.");
+  assert.deepEqual(approval.publicUrls, expectedUrls, "Public legal URLs must match the stable URL contract.");
+
+  if (approval.status === "owner_override") {
+    const ownerOverride = approval.ownerOverride;
+    assert.equal(ownerOverride?.authorizedBy, packageJson.author, "Owner override must be authorized by the package owner.");
+    assert.ok(validDate(ownerOverride?.authorizedAt), "Owner override authorization date is missing or invalid.");
+    assert.equal(ownerOverride?.scopeVersion, packageJson.version, "Owner override must be limited to the current app version.");
+    assert.ok(typeof ownerOverride?.reason === "string" && ownerOverride.reason.trim().length >= 20, "Owner override reason is missing.");
+    assert.equal(ownerOverride?.acknowledgesIncompleteLegalReview, true, "Owner must acknowledge the incomplete legal review.");
+    assert.equal(ownerOverride?.acknowledgesUnverifiedOperationalRequirements, true, "Owner must acknowledge the unverified operational requirements.");
+    assert.equal(ownerOverride?.acknowledgesUnsignedArtifacts, true, "Owner must acknowledge that release artifacts are unsigned.");
+    assert.equal(ownerOverride?.authorizesPublicLatestRelease, true, "Owner must explicitly authorize a public latest release.");
+    console.warn(`Owner override accepted for VoiceFlow ${approval.appVersion}; external legal and operational requirements remain incomplete.`);
+    return;
+  }
+
   assert.ok(validDate(approval.legalEmailCheck?.completedAt), "Operational legal-email check date is missing or invalid.");
   assert.ok(typeof approval.legalEmailCheck?.evidenceReference === "string" && approval.legalEmailCheck.evidenceReference.trim().length >= 5, "Operational legal-email evidence reference is missing.");
   assert.ok(typeof approval.commercialMailbox === "string" && approval.commercialMailbox.length >= 12, "A complete commercial mailbox is required.");
   assert.doesNotMatch(approval.commercialMailbox, /todo|tbd|placeholder|example|residential|pendiente|replace/i, "Commercial mailbox contains a placeholder or residential marker.");
-  assert.deepEqual(approval.publicUrls, expectedUrls, "Public legal URLs must match the stable URL contract.");
-
   assert.ok(typeof approval.attorneyReview?.reviewer === "string" && approval.attorneyReview.reviewer.trim().length >= 3, "Attorney reviewer is missing.");
   assert.ok(validDate(approval.attorneyReview?.approvedAt), "Attorney approval date is missing or invalid.");
   assert.ok(typeof approval.attorneyReview?.evidenceReference === "string" && approval.attorneyReview.evidenceReference.trim().length >= 5, "Attorney approval evidence reference is missing.");
