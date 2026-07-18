@@ -3,8 +3,6 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { verifyModelDownloads } = require("../src/model-smoke-utils.cjs");
-const { resolveWhisperProfile } = require("../src/whisper-profiles.cjs");
 const brand = require('../src/brand-config.cjs');
 
 const root = path.join(__dirname, "..");
@@ -38,31 +36,28 @@ async function run() {
 
   return withPackagedSmokeTemp(async (userData) => {
     for (const profileId of resolveProfiles(process.argv.slice(2))) {
-      const reportPath = path.join(userData, `${profileId}-self-test-report.json`);
       const result = spawnSync(executable, [
         `--self-test-model=${profileId}`,
         `--self-test-user-data=${userData}`,
-        `--self-test-report=${reportPath}`,
         "--disable-gpu"
       ], {
         encoding: "utf8",
         timeout: 20 * 60 * 1000,
         windowsHide: true
       });
-      assert.equal(result.status, 0, `${profileId}: ${result.stderr || result.error || "falló"}`);
-
-      const profile = resolveWhisperProfile(profileId);
-      const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
-      console.log(`Packaged ${profileId} cache: ${report.cacheDir}`);
-      assert.ok(isPathContained(userData, report.cacheDir), `${profileId}: la caché salió del directorio temporal aislado`);
-      await verifyModelDownloads(report.cacheDir, profile.model);
-      assert.equal(report.model, profile.model, `${profileId}: el reporte validó otro modelo`);
-      assert.equal(report.dtype, profile.dtype, `${profileId}: el reporte validó otro dtype`);
-      assert.ok(report.cacheBytes > 0, `${profileId}: el reporte no confirmó pesos descargados`);
-      console.log(`Packaged ${profileId} model self-test passed`);
+      assert.notEqual(result.status, null, `${profileId}: la autoprueba excedió el tiempo límite`);
+      assert.notEqual(result.status, 0, `${profileId}: una instalación limpia no debe obtener modelos remotos`);
+      const diagnostics = `${result.stdout || ""}\n${result.stderr || result.error || ""}`;
+      assert.match(
+        diagnostics,
+        /allowRemoteModels=false|local_files_only=true|paquete del modelo local no est[aá] instalado/i,
+        `${profileId}: el fallo no confirmó la política local-only: ${diagnostics}`
+      );
+      assert.doesNotMatch(diagnostics, /ECONN|ETIMEDOUT|fetch failed|https?:\/\//i, `${profileId}: se observó un intento de red`);
+      console.log(`Packaged ${profileId} local-only guard verified`);
     }
 
-    console.log("Packaged model cache isolation verified.");
+    console.log("Packaged model policy verified: clean installs fail closed until a verified offline pack is installed.");
   });
 }
 

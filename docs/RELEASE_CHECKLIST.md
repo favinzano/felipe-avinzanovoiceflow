@@ -10,7 +10,7 @@
 - [ ] `npm test` pasa.
 - [ ] `npm run test:production` pasa.
 - [ ] `npm run test:models` pasa con Base y Large v3 Turbo.
-- [ ] `npm run release:test-models` pasa desde el ejecutable empaquetado.
+- [ ] `npm run release:test-models` confirma que el ejecutable empaquetado no intenta obtener modelos remotos cuando falta un paquete offline.
 - [ ] `npm run release:test-installer` pasa.
 - [ ] `npm audit --omit=dev` no reporta vulnerabilidades.
 
