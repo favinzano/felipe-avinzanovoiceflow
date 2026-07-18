@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { PASTE_FAILURE_REASON } = require('./paste-failure-reason.cjs');
 
 function resolveWin32HelperPath({ isPackaged, resourcesPath, appRoot, helperExecutableName, pathApi = path }) {
@@ -25,13 +25,124 @@ function runWin32Helper(helperPath, args, execFileImpl) {
   });
 }
 
+function createPersistentWin32Client(helperPath, { spawnImpl = spawn, timeoutMs = 2000 } = {}) {
+  let child;
+  let stdoutBuffer = '';
+  const pending = [];
+
+  function rejectPending(error) {
+    while (pending.length) {
+      const request = pending.shift();
+      clearTimeout(request.timeout);
+      request.reject(error);
+    }
+  }
+
+  function stop() {
+    const running = child;
+    child = undefined;
+    stdoutBuffer = '';
+    rejectPending(new Error('helper_stopped'));
+    if (running && !running.killed) {
+      running.stdin?.write(`${JSON.stringify({ command: 'quit' })}\n`);
+      running.kill();
+    }
+  }
+
+  function ensureChild() {
+    if (child && !child.killed) return child;
+    const started = spawnImpl(helperPath, ['serve'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    child = started;
+    started.stdout.setEncoding('utf8');
+    started.stdout.on('data', (data) => {
+      stdoutBuffer += data;
+      let newline;
+      while ((newline = stdoutBuffer.indexOf('\n')) >= 0) {
+        const line = stdoutBuffer.slice(0, newline).trim();
+        stdoutBuffer = stdoutBuffer.slice(newline + 1);
+        if (!line) continue;
+        const request = pending.shift();
+        if (!request) continue;
+        clearTimeout(request.timeout);
+        try {
+          const result = JSON.parse(line);
+          if (!result.ok) request.reject(new Error(result.error || 'invalid_helper_response'));
+          else request.resolve(result);
+        } catch (error) {
+          request.reject(error);
+        }
+      }
+    });
+    const handleFailure = (error) => {
+      if (child === started) child = undefined;
+      rejectPending(error instanceof Error ? error : new Error('helper_exited'));
+    };
+    started.once('error', handleFailure);
+    started.once('exit', (code) => handleFailure(new Error(`helper_exited_${code}`)));
+    return started;
+  }
+
+  function request(command, args = []) {
+    return new Promise((resolve, reject) => {
+      let process;
+      try {
+        process = ensureChild();
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      const item = { resolve, reject };
+      item.timeout = setTimeout(() => {
+        const index = pending.indexOf(item);
+        if (index >= 0) pending.splice(index, 1);
+        if (child === process) {
+          child = undefined;
+          process.kill();
+        }
+        reject(new Error('helper_timeout'));
+      }, timeoutMs);
+      pending.push(item);
+      process.stdin.write(`${JSON.stringify({ command, args })}\n`, (error) => {
+        if (!error) return;
+        const index = pending.indexOf(item);
+        if (index >= 0) pending.splice(index, 1);
+        clearTimeout(item.timeout);
+        reject(error);
+      });
+    });
+  }
+
+  return {
+    request,
+    stop,
+    warm() { ensureChild(); return true; },
+    health: () => ({ running: Boolean(child && !child.killed), pending: pending.length })
+  };
+}
+
 // Windows requires the target window to be foreground before SendInput will deliver
 // synthetic keystrokes to it, so the helper captures a handle up front and restores
 // focus to it at paste time. macOS/Linux input injection has no such restriction.
-function createWin32Strategy({ helperPath, execFileImpl = execFile }) {
+function createWin32Strategy({ helperPath, execFileImpl = execFile, spawnImpl }) {
+  const persistentClient = spawnImpl || execFileImpl === execFile
+    ? createPersistentWin32Client(helperPath, { spawnImpl: spawnImpl || spawn })
+    : null;
+
+  async function run(args) {
+    if (persistentClient) {
+      try {
+        return await persistentClient.request(args[0], args.slice(1));
+      } catch {
+        // The one-shot helper remains a safe fallback while the persistent host
+        // is restarted lazily by the next request.
+      }
+    }
+    return runWin32Helper(helperPath, args, execFileImpl);
+  }
+
   return {
     async captureTarget() {
-      const result = await runWin32Helper(helperPath, ['capture'], execFileImpl);
+      const result = await run(['capture']);
       return { handle: result.handle, focusHandle: result.focusHandle, processId: result.processId };
     },
     async paste(target) {
@@ -39,11 +150,20 @@ function createWin32Strategy({ helperPath, execFileImpl = execFile }) {
       const args = ['paste', '--handle', String(target.handle), '--process', String(target.processId)];
       if (target.focusHandle) args.push('--focus', String(target.focusHandle));
       try {
-        await runWin32Helper(helperPath, args, execFileImpl);
-        return { ok: true };
+        const result = await run(args);
+        return Number.isFinite(result.focusMs) ? { ok: true, focusMs: result.focusMs } : { ok: true };
       } catch {
         return { ok: false, reason: PASTE_FAILURE_REASON.HELPER_ERROR };
       }
+    },
+    dispose() {
+      persistentClient?.stop();
+    },
+    warm() {
+      return persistentClient?.warm() || false;
+    },
+    health() {
+      return persistentClient?.health() || { running: false, mode: 'one-shot' };
     }
   };
 }
@@ -118,8 +238,8 @@ function createNativeKeyboardStrategy({ platform, loadNativeKeyboard = loadNutJs
   };
 }
 
-function createInputStrategy({ platform = process.platform, helperPath, execFileImpl, loadNativeKeyboard, loadMacPermissions } = {}) {
-  if (platform === 'win32') return createWin32Strategy({ helperPath, execFileImpl });
+function createInputStrategy({ platform = process.platform, helperPath, execFileImpl, spawnImpl, loadNativeKeyboard, loadMacPermissions } = {}) {
+  if (platform === 'win32') return createWin32Strategy({ helperPath, execFileImpl, spawnImpl });
   if (platform === 'darwin' || platform === 'linux') {
     return createNativeKeyboardStrategy({ platform, loadNativeKeyboard, loadMacPermissions });
   }
@@ -128,6 +248,7 @@ function createInputStrategy({ platform = process.platform, helperPath, execFile
 
 module.exports = {
   PASTE_FAILURE_REASON,
+  createPersistentWin32Client,
   resolveWin32HelperPath,
   createInputStrategy
 };

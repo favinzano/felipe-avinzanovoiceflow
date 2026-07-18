@@ -2,6 +2,8 @@
 
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const { EventEmitter } = require('node:events');
+const { PassThrough, Writable } = require('node:stream');
 const { PASTE_FAILURE_REASON, resolveWin32HelperPath, createInputStrategy } = require('./input-helper.cjs');
 
 function fakeExecFile(responsesByArgs) {
@@ -33,6 +35,38 @@ async function run() {
     pathApi: path.win32
   });
   assert.equal(devPath, path.win32.join('C:\\dev\\app', 'native', 'win32-x64', 'Helper.exe'));
+
+  // The persistent Windows host serves capture and paste over one process.
+  {
+    let spawns = 0;
+    const spawnImpl = () => {
+      spawns += 1;
+      const child = new EventEmitter();
+      child.killed = false;
+      child.stdout = new PassThrough();
+      child.stderr = new PassThrough();
+      child.stdin = new Writable({
+        write(chunk, _encoding, callback) {
+          const request = JSON.parse(String(chunk));
+          if (request.command === 'capture') {
+            child.stdout.write(`${JSON.stringify({ ok: true, handle: 42, focusHandle: 7, processId: 99 })}\n`);
+          } else if (request.command === 'paste') {
+            child.stdout.write(`${JSON.stringify({ ok: true, focusMs: 3 })}\n`);
+          }
+          callback();
+        }
+      });
+      child.kill = () => { child.killed = true; };
+      return child;
+    };
+    const fallback = fakeExecFile(() => ({ error: new Error('fallback should not run') }));
+    const strategy = createInputStrategy({ platform: 'win32', helperPath: 'C:\\helper.exe', execFileImpl: fallback, spawnImpl });
+    assert.deepEqual(await strategy.captureTarget(), { handle: 42, focusHandle: 7, processId: 99 });
+    assert.deepEqual(await strategy.paste({ handle: 42, focusHandle: 7, processId: 99 }), { ok: true, focusMs: 3 });
+    assert.equal(spawns, 1);
+    assert.equal(fallback.calls.length, 0);
+    strategy.dispose();
+  }
 
   // win32 strategy: capture reads the helper's JSON stdout.
   {
@@ -222,7 +256,7 @@ async function run() {
   // Unsupported platforms fail fast instead of silently doing nothing.
   assert.throws(() => createInputStrategy({ platform: 'freebsd' }), /Unsupported platform/);
 
-  console.log('Input helper: 30 checks passed.');
+  console.log('Input helper: 34 checks passed.');
 }
 
 run().catch((error) => {

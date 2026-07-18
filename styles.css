@@ -99,6 +99,40 @@ h2 { font: 550 22px/1.2 Geist; letter-spacing: -.025em; }
 
 .about-card { display: grid; grid-template-columns: 230px 1fr; min-height: 350px; }.about-mark { display: flex; align-items: center; justify-content: center; color: var(--bone); background: var(--ink); }.about-card > div:last-child { padding: 35px; }.about-card h2 { font-size: 23px; }.about-card p { max-width: 570px; color: #5e6d77; font-size: 13px; line-height: 1.7; }.about-card dl { margin-top: 25px; border-top: 1px solid var(--rule); }.about-card dl div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 11px; }.about-card dt { color: var(--fog); }.about-card dd { margin: 0; font-weight: 650; }
 .support-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 13px; }.support-grid h2 { margin-bottom: 7px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 9px; }
+.button-row button { padding: 7px 9px; }
+.feature-card .secondary-button, .secondary-button { border-color: var(--rule); color: var(--ink); background: transparent; }
+.danger-card { border-color: rgba(138,79,46,.28); }
+.danger-card > button { border-color: var(--clay); background: var(--clay); }
+
+.modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 28px; background: rgba(13,27,42,.72); backdrop-filter: blur(4px); }
+.modal-backdrop[hidden] { display: none; }
+.modal-card { width: min(720px, calc(100vw - 56px)); max-height: calc(100vh - 56px); overflow: auto; border: 1px solid var(--ink); color: var(--ink); background: var(--paper); box-shadow: 14px 14px 0 rgba(13,27,42,.3); }
+.legal-gate-card { padding: 34px; }
+.legal-gate-card h1 { margin-bottom: 18px; }
+.legal-summary { margin-bottom: 18px; color: #344551; font-size: 14px; line-height: 1.65; }
+.legal-points { padding: 16px 18px; border-top: 1px solid rgba(182,109,69,.34); border-bottom: 1px solid rgba(182,109,69,.34); background: rgba(182,109,69,.07); }
+.legal-points p { margin: 0 0 9px; color: #53636e; font-size: 12px; line-height: 1.55; }
+.legal-points p:last-child { margin-bottom: 0; }
+.legal-document-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0; }
+.document-button { padding: 9px 11px; border: 1px solid var(--rule); background: var(--bone); font-size: 11px; font-weight: 650; text-align: left; }
+.legal-acceptance { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 14px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); color: #344551; font-size: 12px; line-height: 1.55; }
+.legal-acceptance input { margin-top: 2px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.modal-actions button { padding: 10px 14px; border: 1px solid var(--ink); color: var(--bone); background: var(--ink); font-size: 11px; font-weight: 650; }
+.modal-actions button:disabled { cursor: not-allowed; opacity: .42; }
+.document-modal { z-index: 1100; }
+.document-card { display: grid; grid-template-rows: auto minmax(0,1fr); width: min(820px, calc(100vw - 56px)); height: min(760px, calc(100vh - 56px)); overflow: hidden; }
+.document-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 21px 24px 16px; border-bottom: 1px solid var(--rule); }
+.document-header h2 { margin: 0; }
+.close-document { width: 34px; height: 34px; border: 1px solid var(--rule); background: transparent; font-size: 22px; line-height: 1; }
+.legal-document { overflow: auto; padding: 26px 32px 40px; outline: 0; }
+.legal-document h1 { margin: 0 0 22px; font-size: 30px; line-height: 1.05; }
+.legal-document h2 { margin: 28px 0 10px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 20px; }
+.legal-document h3 { margin: 20px 0 8px; font-size: 15px; }
+.legal-document p, .legal-document li { color: #44545f; font-size: 12px; line-height: 1.7; }
+.legal-document ul { padding-left: 20px; }
+.legal-document blockquote { margin: 18px 0; padding: 12px 15px; border-top: 1px solid rgba(44,95,138,.28); border-bottom: 1px solid rgba(44,95,138,.28); color: #53636e; background: rgba(44,95,138,.06); font-size: 12px; line-height: 1.65; }
 
 .toast { position: fixed; right: 22px; bottom: 20px; padding: 10px 13px; color: var(--bone); background: var(--ink); font-size: 11px; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 200ms ease-out, transform 200ms ease-out; box-shadow: 8px 8px 0 rgba(44,95,138,.16); }.toast.show { opacity: 1; transform: translateY(0); }
 

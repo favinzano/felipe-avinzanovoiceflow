@@ -1,0 +1,43 @@
+{
+  "status": "owner_override",
+  "appVersion": "1.1.9",
+  "termsVersion": "2026-07-17-beta-1",
+  "legalEmail": "legal@felipeavinzano.com",
+  "legalEmailCheck": {
+    "completedAt": null,
+    "evidenceReference": null
+  },
+  "commercialMailbox": null,
+  "publicUrls": {
+    "termsEs": "https://felipeavinzano.com/voiceflow/legal/terminos",
+    "privacyEs": "https://felipeavinzano.com/voiceflow/legal/privacidad",
+    "termsEn": "https://felipeavinzano.com/voiceflow/legal/en/terms",
+    "privacyEn": "https://felipeavinzano.com/voiceflow/legal/en/privacy",
+    "contact": "https://felipeavinzano.com/voiceflow/legal/contacto"
+  },
+  "attorneyReview": {
+    "reviewer": null,
+    "approvedAt": null,
+    "evidenceReference": null,
+    "floridaConsumerTechnology": false,
+    "europeanConsumers": false,
+    "spanishAndEnglish": false
+  },
+  "networkAudit": {
+    "completedAt": null,
+    "evidenceReference": null,
+    "systems": [],
+    "zeroUserContentMatches": false,
+    "onlyInventoriedHosts": false
+  },
+  "ownerOverride": {
+    "authorizedBy": "Felipe Avinzano",
+    "authorizedAt": "2026-07-17T21:32:07.9773509-04:00",
+    "scopeVersion": "1.1.9",
+    "reason": "El propietario solicita continuar inmediatamente con el merge y la publicación latest y asume la responsabilidad por los requisitos externos aún pendientes.",
+    "acknowledgesIncompleteLegalReview": true,
+    "acknowledgesUnverifiedOperationalRequirements": true,
+    "acknowledgesUnsignedArtifacts": true,
+    "authorizesPublicLatestRelease": true
+  }
+}

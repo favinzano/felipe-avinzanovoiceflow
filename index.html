@@ -55,7 +55,7 @@
               <canvas class="waveform" id="waveform" aria-hidden="true"></canvas>
               <h2 id="headline">Listo para capturar tu idea.</h2>
               <p id="stateLabel">Haz clic o usa Ctrl + Shift + Espacio.</p>
-              <div class="privacy-strip"><span>Audio local</span><span>Sin nube</span><span>Multilenguaje</span></div>
+              <div class="privacy-strip"><span>Audio local</span><span>IA Whisper local</span><span>Sin nube</span></div>
             </section>
 
             <aside class="quick-actions">
@@ -110,15 +110,17 @@
 
             <section class="settings-group">
               <h3>Motor y rendimiento</h3>
+              <label class="setting-row"><span><strong>Selección del motor</strong><small>Automático usa el motor local validado para el idioma y conserva Whisper como respaldo.</small></span><select id="transcriptionMode"><option value="auto">Automático · recomendado</option><option value="advanced">Avanzado · forzar ajustes</option></select></label>
+              <label class="setting-row"><span><strong>Motor avanzado</strong><small>Se habilitan otros motores sólo después de validar su paquete y benchmark.</small></span><select id="transcriptionEngine"><option value="transformers-js">Transformers.js · Whisper local</option></select></label>
               <label class="setting-row"><span><strong>Calidad de transcripción</strong><small>Máxima precisión usa PCM sin compresión, Whisper Large v3 Turbo y beam search.</small></span><select id="whisperProfile"><option value="fast">Rápido · Whisper Base Q8</option><option value="accurate">Máxima precisión · Whisper Large v3 Turbo Q8</option></select></label>
-              <label class="setting-row"><span><strong>Aceleración de inferencia</strong><small>DirectML usa la GPU de Windows y vuelve a CPU si no es compatible.</small></span><select id="inferenceDevice"><option value="cpu">CPU · máxima compatibilidad</option><option value="dml">DirectML · experimental</option></select></label>
+              <label class="setting-row"><span><strong>Aceleración de inferencia</strong><small id="inferenceDeviceDescription">DirectML usa la GPU de Windows y vuelve a CPU si no es compatible.</small></span><select id="inferenceDevice"><option value="cpu">CPU · máxima compatibilidad</option><option value="dml">DirectML · experimental</option></select></label>
               <label class="setting-row"><span><strong>Detener al detectar silencio</strong><small>Finaliza automáticamente después de hablar y permanecer en silencio.</small></span><input type="checkbox" id="autoStopEnabled" /></label>
               <label class="setting-row"><span><strong>Periodo de gracia del silencio</strong><small>Una pausa más larga finaliza y procesa la grabación.</small></span><select id="silenceTimeout"><option value="1200">1.2 segundos</option><option value="1800">1.8 segundos</option><option value="2500">2.5 segundos</option><option value="4000">4 segundos</option></select></label>
             </section>
 
             <section class="settings-group">
               <h3>Atajos</h3>
-              <label class="setting-row"><span><strong>Modo del atajo</strong><small>Alternar inicia y detiene con cada pulsación. Mantener graba hasta soltar.</small></span><select id="shortcutMode"><option value="toggle">Alternar al presionar</option><option value="hold">Mantener para hablar</option></select></label>
+              <label class="setting-row"><span><strong>Modo del atajo</strong><small id="shortcutModeDescription">Alternar inicia y detiene con cada pulsación. Mantener graba hasta soltar.</small></span><select id="shortcutMode"><option value="toggle">Alternar al presionar</option><option value="hold">Mantener para hablar</option></select></label>
               <label class="setting-row"><span><strong>Atajo de transcripción</strong><small>Disponible incluso con la ventana en segundo plano.</small></span><select id="recordShortcut"><option value="CommandOrControl+Shift+Space">Ctrl + Shift + Espacio</option><option value="CommandOrControl+Shift+D">Ctrl + Shift + D</option><option value="CommandOrControl+Alt+V">Ctrl + Alt + V</option></select></label>
               <label class="setting-row"><span><strong>Reprocesar última grabación</strong><small>Vuelve a ejecutar el motor sin grabar otra vez.</small></span><select id="reprocessShortcut"><option value="CommandOrControl+Alt+Space">Ctrl + Alt + Espacio</option><option value="CommandOrControl+Alt+D">Ctrl + Alt + D</option><option value="CommandOrControl+Shift+V">Ctrl + Shift + V</option></select></label>
             </section>
@@ -137,7 +139,7 @@
             </section>
             <section class="settings-group">
               <h3>Aplicación</h3>
-              <label class="setting-row"><span><strong>Iniciar con Windows</strong><small>Abre felipe avinzano VoiceFlow silenciosamente en la bandeja al iniciar sesión.</small></span><input type="checkbox" id="autoStartEnabled" /></label>
+              <label class="setting-row"><span><strong id="autoStartTitle">Iniciar con el sistema</strong><small id="autoStartDescription">Abre felipe avinzano VoiceFlow silenciosamente al iniciar sesión.</small></span><input type="checkbox" id="autoStartEnabled" /></label>
               <label class="setting-row"><span><strong>Al cerrar la ventana</strong><small>Ocultarla mantiene disponibles los atajos globales.</small></span><select id="closeBehavior"><option value="ask">Preguntar siempre</option><option value="tray">Ocultar en la bandeja</option><option value="exit">Salir de la aplicación</option></select></label>
             </section>
           </div>
@@ -155,13 +157,43 @@
           <header class="page-header"><div><p class="eyebrow">06 / Soporte</p><h1>Resuelve lo importante.<br />Sin rodeos.</h1><p class="page-lead">La información de diagnóstico nunca incluye tus transcripciones.</p></div></header>
           <div class="support-grid">
             <section class="feature-card"><span class="card-kicker">Diagnóstico</span><h2>¿Algo no funciona?</h2><p>Copia información técnica básica para compartirla con soporte.</p><button id="diagnosticsButton">Copiar diagnóstico</button></section>
-            <section class="feature-card"><span class="card-kicker">Recuperación</span><h2>Reparar modelos locales.</h2><p>Elimina una descarga dañada y prepara una descarga limpia en la próxima transcripción.</p><button id="repairModelsButton">Reparar modelos</button></section>
+            <section class="feature-card"><span class="card-kicker">Recuperación</span><h2>Validar modelos locales.</h2><p>Comprueba el modelo instalado sin borrarlo ni conectarse a Internet. Si falla, instala de nuevo su paquete offline.</p><button id="repairModelsButton">Validar modelos</button></section>
+            <section class="feature-card"><span class="card-kicker">Paquetes offline</span><h2>Instalar un motor verificado.</h2><p>Selecciona una carpeta local con manifiesto, licencia y hashes SHA-256. VoiceFlow nunca descarga paquetes en silencio.</p><button id="installModelPackButton">Instalar paquete local</button></section>
             <section class="feature-card"><span class="card-kicker">Rendimiento local</span><h2 id="performanceSummary">Esperando una transcripción.</h2><p id="performanceDetails">Aquí verás latencia, factor de tiempo real y memoria utilizada.</p></section>
-            <section class="feature-card"><span class="card-kicker">Privacidad</span><h2>Tus palabras se quedan aquí.</h2><p>Audio, diccionario e historial permanecen en este equipo.</p></section>
+            <section class="feature-card"><span class="card-kicker">Legal y privacidad</span><h2>Documentos siempre accesibles.</h2><p>Consulta los Términos, la Política de privacidad, las licencias y la evaluación del AI Act, incluso sin conexión.</p><div class="button-row"><button id="termsEsButton">Términos ES</button><button id="termsEnButton">Terms EN</button><button id="privacyEsButton">Privacidad ES</button><button id="privacyEnButton">Privacy EN</button><button id="licensesButton">Licencias</button><button id="aiActButton">AI Act</button></div><button class="secondary-button" id="legalContactButton">legal@felipeavinzano.com</button></section>
+            <section class="feature-card danger-card"><span class="card-kicker">Control local</span><h2>Eliminar mis datos personales locales.</h2><p>Borra historial, diccionario, preferencias y backups, y reinicia la app. Los modelos descargados y los archivos exportados se conservan.</p><button id="erasePersonalDataButton">Eliminar datos locales</button></section>
           </div>
         </div>
       </section>
     </main>
+
+    <div class="modal-backdrop legal-gate" id="legalGate" role="dialog" aria-modal="true" aria-labelledby="legalGateTitle" hidden>
+      <section class="modal-card legal-gate-card">
+        <p class="eyebrow">Antes de comenzar</p>
+        <h1 id="legalGateTitle">IA local, términos claros.</h1>
+        <p class="legal-summary">VoiceFlow utiliza modelos Whisper de inteligencia artificial ejecutados en este equipo. El audio no se envía a servidores. Las transcripciones pueden contener errores y deben revisarse.</p>
+        <div class="legal-points">
+          <p><strong>Grabaciones:</strong> obtén la autorización exigida por la ley antes de grabar voces de terceros.</p>
+          <p><strong>Conexiones:</strong> Hugging Face proporciona los modelos y GitHub las actualizaciones; nunca reciben tu audio ni tus transcripciones.</p>
+          <p><strong>Usos delicados:</strong> no dependas exclusivamente de la app para asuntos médicos, jurídicos, financieros, de seguridad o emergencias.</p>
+        </div>
+        <div class="legal-document-actions">
+          <button class="document-button" id="gateTermsEsButton" type="button">Leer Términos (ES)</button>
+          <button class="document-button" id="gateTermsEnButton" type="button">Read Terms (EN)</button>
+          <button class="document-button" id="gatePrivacyEsButton" type="button">Leer Privacidad (ES)</button>
+          <button class="document-button" id="gatePrivacyEnButton" type="button">Read Privacy (EN)</button>
+        </div>
+        <label class="legal-acceptance"><input id="acceptTermsCheckbox" type="checkbox" /> <span>Acepto los Términos de uso vigentes y confirmo que tengo al menos 18 años. He podido consultar la Política de privacidad.</span></label>
+        <div class="modal-actions"><button class="secondary-button" id="declineTermsButton" type="button">Salir</button><button id="acceptTermsButton" type="button" disabled>Aceptar y continuar</button></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop document-modal" id="legalDocumentModal" role="dialog" aria-modal="true" aria-labelledby="legalDocumentTitle" hidden>
+      <section class="modal-card document-card">
+        <div class="document-header"><div><p class="eyebrow">Documento local</p><h2 id="legalDocumentTitle">Documento legal</h2></div><button class="close-document" id="closeLegalDocumentButton" type="button" aria-label="Cerrar documento">×</button></div>
+        <article class="legal-document" id="legalDocumentContent" tabindex="0"></article>
+      </section>
+    </div>
 
     <div class="toast" id="toast"></div>
     <script src="dist/renderer.js"></script>

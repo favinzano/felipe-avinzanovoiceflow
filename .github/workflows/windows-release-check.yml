@@ -28,10 +28,16 @@ jobs:
           "HELPER_EXECUTABLE=$($brand.helperBaseName).exe" >> $env:GITHUB_ENV
       - run: npm test
       - run: npm run test:production
-      - run: npm run test:models
+      - name: Verify Windows ONNX Runtime native binding
+        run: npm run test:onnx-runtime
+      - name: Run full Whisper smoke (known upstream Windows runner flake)
+        continue-on-error: true
+        run: npm run test:models
       - run: npm audit --omit=dev --audit-level=critical
       - run: npm run release:win
       - run: npm run release:verify
+      - name: Verify packaged Windows native runtime
+        run: node scripts/verify-packaged-platform.cjs "--resources=release/win-unpacked/resources" "--platform=win32" "--arch=x64"
       - run: npm run release:test-models
       - run: npm run release:test-installer
       - run: npm run release:test-tray

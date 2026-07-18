@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## Arquitectura (felipe-avinzano VoiceFlow)
+
+- **Core:** app Electron 39+, Node.js, `esbuild` bundlea el frontend Vanilla JS (`src/renderer.js` → `dist/renderer.js`).
+- **Filosofía estricta:** 100% offline. Cero dependencias de APIs en la nube. Privacidad absoluta.
+- **Motor local de IA:** `@huggingface/transformers` + `onnxruntime-node`, desempaquetado de ASAR (`asarUnpack` en `package.json`) para que el binario nativo funcione en la app empaquetada.
+- **UI:** `index.html` (ventana principal) y `overlay.html` (interfaz flotante).
+
+## Reglas de Desarrollo
+
+1. Nunca sugerir ni introducir llamadas a OpenAI, Anthropic, Firebase u otros servicios en la nube. Todo proceso (IA, autenticación, búsqueda) debe ser estrictamente local a la máquina.
+2. Mantener intacta la suite de tests (`src/*.test.cjs`) — correr `npm test` antes de dar por cerrado un cambio.
+3. Modularizar `src/main.cjs`: es el punto de entrada y ha ido creciendo; extraer responsabilidades a módulos propios en vez de dejarlo crecer como archivo monolítico (siguiendo el límite de ~800 líneas por archivo de las reglas comunes del usuario).
+
+
 ## gstack
 
 This machine has [gstack](https://github.com/garrytan/gstack) installed at `~/.claude/skills/gstack`. It provides the following slash-command skills for Claude Code:

@@ -43,6 +43,7 @@ assert.throws(
 const nodeScripts = [
   'verify-release.cjs',
   'verify-packaged-models.cjs',
+  'verify-packaged-platform.cjs',
   'generate-release-notes.cjs',
 ];
 for (const name of nodeScripts) {
@@ -94,6 +95,8 @@ assert.match(
   'signed workflow passes every matrix flavor explicitly to independent signature verification',
 );
 const windowsCheckWorkflow = fs.readFileSync(path.join(root, '.github/workflows/windows-release-check.yml'), 'utf8');
+assert.match(windowsCheckWorkflow, /Verify Windows ONNX Runtime native binding[\s\S]*?npm run test:onnx-runtime/, 'Windows blocks on a deterministic native ONNX smoke test');
+assert.match(windowsCheckWorkflow, /Run full Whisper smoke \(known upstream Windows runner flake\)[\s\S]*?continue-on-error:\s*true[\s\S]*?npm run test:models/, 'only the documented full Windows Whisper smoke is non-blocking');
 for (const [source, name] of [[signedWorkflow, 'signed release workflow'], [windowsCheckWorkflow, 'Windows release check workflow']]) {
   assert.doesNotMatch(source, forbidden, `${name} contains a legacy product identifier`);
   assert.match(source, /src\/brand-config\.json/, `${name} loads the canonical brand config`);
@@ -101,6 +104,22 @@ for (const [source, name] of [[signedWorkflow, 'signed release workflow'], [wind
   assert.match(source, /PRODUCT_DISPLAY_NAME/, `${name} exports the canonical display name`);
   assert.match(source, /HELPER_EXECUTABLE/, `${name} exports the canonical helper executable`);
   assert.match(source, /\$\{\{\s*env\.PRODUCT_SLUG\s*\}\}/, `${name} derives artifact patterns from the canonical slug`);
+}
+
+const platformWorkflows = [
+  [workflow, 'multiplatform release workflow', ['win32', 'darwin', 'linux']],
+  [windowsCheckWorkflow, 'Windows release check workflow', ['win32']],
+  [fs.readFileSync(path.join(root, '.github/workflows/macos-release-check.yml'), 'utf8'), 'macOS release check workflow', ['darwin']],
+  [fs.readFileSync(path.join(root, '.github/workflows/linux-release-check.yml'), 'utf8'), 'Linux release check workflow', ['linux']]
+];
+for (const [source, name, platforms] of platformWorkflows) {
+  assert.match(source, /verify-packaged-platform\.cjs/, `${name} verifies packaged native bindings`);
+  for (const platform of platforms) {
+    assert.match(source, new RegExp(`--platform=${platform}`), `${name} verifies ${platform}`);
+  }
+  if (platforms.includes('darwin') || platforms.includes('linux')) {
+    assert.match(source, /--self-test-desktop-bridge/, `${name} runs the packaged desktop bridge self-test`);
+  }
 }
 
 const trayTest = fs.readFileSync(path.join(__dirname, 'test-tray.ps1'), 'utf8');
@@ -151,7 +170,10 @@ assert.match(mainSource, /const allowTestInstance = process\.argv\.includes\("--
 assert.match(mainSource, /app\.setPath\("userData", targetUserDataPath\)/);
 assert.match(mainSource, /app\.setPath\("sessionData", initialSessionDataPath\)/);
 assert.match(mainSource, /const migrationPromise = isolatedPaths/);
-assert.match(mainSource, /if \(!isolatedTestMode\)\s*\{\s*initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
+assert.match(mainSource, /function activateAcceptedRuntime\(\)[\s\S]*?hasAcceptedCurrentTerms\(activeUserDataPath\)[\s\S]*?initializeAutoStart\(\);\s*configureAutoUpdater\(\);\s*checkForUpdates\(\);/);
+assert.match(mainSource, /if \(hasAcceptedCurrentTerms\(activeUserDataPath\)\) activateAcceptedRuntime\(\);/);
+assert.match(mainSource, /show:\s*!startHidden\s*\|\|\s*\(!isolatedTestMode\s*&&\s*!hasAcceptedCurrentTerms\(activeUserDataPath\)\)/, 'isolated tray QA may start hidden while production still surfaces unaccepted Terms');
+assert.match(mainSource, /if \(!isolatedTestMode\s*&&\s*!hasAcceptedCurrentTerms\(activeUserDataPath\)\)\s*\{/, 'isolated tray QA may exercise close-to-tray while production still exits before Terms acceptance');
 
 if (process.platform === 'win32') {
   const signatureProbe = spawnSync('powershell', [

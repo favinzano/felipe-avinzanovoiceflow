@@ -152,6 +152,21 @@ internal static class Program
         } while (Environment.TickCount64 < deadline);
     }
 
+    private static bool WaitForFocus(IntPtr handle, IntPtr focusHandle, uint targetThread, int maximumMilliseconds)
+    {
+        var deadline = Environment.TickCount64 + maximumMilliseconds;
+        do
+        {
+            var foregroundMatches = GetForegroundWindow() == handle;
+            var info = new GuiThreadInfo { size = Marshal.SizeOf<GuiThreadInfo>() };
+            var focusMatches = focusHandle == IntPtr.Zero
+                || (GetGUIThreadInfo(targetThread, ref info) && info.focusedWindow == focusHandle);
+            if (foregroundMatches && focusMatches) return true;
+            PumpingWait(2);
+        } while (Environment.TickCount64 < deadline);
+        return GetForegroundWindow() == handle;
+    }
+
     private static void Write(object value) => Console.WriteLine(JsonSerializer.Serialize(value));
 
     private static int Capture()
@@ -219,7 +234,9 @@ internal static class Program
         SetForegroundWindow(handle);
         var setFocusResult = focusHandle != IntPtr.Zero ? SetFocus(focusHandle) : IntPtr.Zero;
         var setFocusError = focusHandle != IntPtr.Zero && setFocusResult == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
-        PumpingWait(120);
+        var focusStartedAt = Environment.TickCount64;
+        var focusConfirmed = WaitForFocus(handle, focusHandle, targetThread, 120);
+        var focusMs = Environment.TickCount64 - focusStartedAt;
         var foregroundHandle = GetForegroundWindow();
         var infoAfterFocus = new GuiThreadInfo { size = Marshal.SizeOf<GuiThreadInfo>() };
         GetGUIThreadInfo(targetThread, ref infoAfterFocus);
@@ -263,6 +280,8 @@ internal static class Program
             requestedFocusHandle = focusHandle.ToInt64(),
             setFocusPreviousHandle = setFocusResult.ToInt64(),
             setFocusError,
+            focusMs,
+            focusConfirmed,
             actualFocusHandleAfterSetFocus = actualFocusHandle.ToInt64(),
             focusMatched = focusHandle == IntPtr.Zero || actualFocusHandle == focusHandle
         });
@@ -358,6 +377,32 @@ internal static class Program
         return ok ? 0 : 6;
     }
 
+    private static int Serve()
+    {
+        string? line;
+        while ((line = Console.ReadLine()) != null)
+        {
+            try
+            {
+                using var request = JsonDocument.Parse(line);
+                var root = request.RootElement;
+                var command = root.TryGetProperty("command", out var commandElement) ? commandElement.GetString() : null;
+                var arguments = root.TryGetProperty("args", out var argsElement) && argsElement.ValueKind == JsonValueKind.Array
+                    ? argsElement.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray()
+                    : Array.Empty<string>();
+                if (command == "quit") return 0;
+                if (command == "capture") Capture();
+                else if (command == "paste") Paste(new[] { "paste" }.Concat(arguments).ToArray());
+                else Write(new { ok = false, error = "unsupported_command" });
+            }
+            catch (Exception error)
+            {
+                Write(new { ok = false, error = error.Message });
+            }
+        }
+        return 0;
+    }
+
     public static int Main(string[] args)
     {
         try
@@ -367,6 +412,7 @@ internal static class Program
                 "capture" => Capture(),
                 "paste" => Paste(args),
                 "self-test" => SelfTest(),
+                "serve" => Serve(),
                 "monitor-shortcut" => Monitor(args),
                 _ => 2
             };

@@ -7,6 +7,7 @@ const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault } = require("./data-migrations.cjs");
 const { initializeVisualizer } = require("./audio-visualizer.js");
 const { PASTE_FAILURE_REASON } = require("./paste-failure-reason.cjs");
+const { normalizePlatformSettings, resolvePlatformCapabilities } = require("./platform-capabilities.cjs");
 
 const voiceAPI = window.voiceAPI || {
   brand: {
@@ -15,7 +16,12 @@ const voiceAPI = window.voiceAPI || {
     suffix: "Flow",
     copper: "#B66D45"
   },
-  runtime: { isPackaged: false, preserveLegacyStorage: false },
+  runtime: {
+    isPackaged: false,
+    platform: "browser",
+    capabilities: resolvePlatformCapabilities("browser", false),
+    preserveLegacyStorage: false
+  },
   appVersion: "0.0.0-dev",
   copy: async (text) => navigator.clipboard?.writeText(text),
   paste: async (text) => {
@@ -40,12 +46,32 @@ const voiceAPI = window.voiceAPI || {
     migrateLegacy: async () => {}
   },
   transcribe: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
+  transcription: {
+    start: async () => ({ id: crypto.randomUUID(), engine: "browser", streaming: false }),
+    pushAudio: () => {},
+    finish: async () => { throw new Error("La transcripción requiere la aplicación de escritorio."); },
+    cancel: async () => false
+  },
+  deliver: async (text, options) => {
+    if (options.copy) await navigator.clipboard?.writeText(text);
+    return { pasted: Boolean(options.paste), row: null, metrics: {} };
+  },
+  metrics: { record: async () => {}, summary: async () => ({ count: 0 }) },
   overlay: async () => {},
   sendAudioData: () => {},
   taskbar: async () => {},
   diagnostics: async () => ({ platform: "browser", version: "preview" }),
   clearModels: async () => true,
   repairModels: async (profile, device) => ({ profile, device, cacheMb: 0, cacheRebuilt: false }),
+  modelPacks: { list: async () => [], install: async () => ({ canceled: true }) },
+  legal: {
+    getStatus: async () => ({ accepted: true, currentTermsVersion: "browser-preview", acceptance: null }),
+    acceptCurrentTerms: async () => ({ accepted: true }),
+    declineCurrentTerms: async () => {},
+    readDocument: async (type, language) => ({ type, language, content: "# Documento no disponible\n\nAbre la aplicación de escritorio para consultar este documento." }),
+    contact: async () => {}
+  },
+  eraseLocalPersonalData: async () => ({ removed: [] }),
   getCloseBehavior: async () => "ask",
   setCloseBehavior: async () => "ask",
   getAutoStart: async () => false,
@@ -93,6 +119,8 @@ if (!voiceAPI.runtime.preserveLegacyStorage) {
 
 const defaults = {
   language: "spanish",
+  transcriptionMode: "auto",
+  transcriptionEngine: "transformers-js",
   whisperProfile: "accurate",
   inferenceDevice: "cpu",
   deliveryMode: "paste-copy",
@@ -134,6 +162,10 @@ let voiceActivityDetector;
 let availableMicrophones = [];
 let persistQueue = Promise.resolve();
 let holdShortcutPressed = false;
+let legalReady = false;
+let transcriptionSessionId;
+let captureFlushResolver;
+let captureFinishedAtEpochMs;
 
 const elements = {
   recordButton: $("#recordButton"),
@@ -154,8 +186,11 @@ const elements = {
   dictionaryList: $("#dictionaryList"),
   microphone: $("#microphoneSelect"),
   language: $("#languageSelect"),
+  transcriptionMode: $("#transcriptionMode"),
+  transcriptionEngine: $("#transcriptionEngine"),
   whisperProfile: $("#whisperProfile"),
   inferenceDevice: $("#inferenceDevice"),
+  inferenceDeviceDescription: $("#inferenceDeviceDescription"),
   deliveryMode: $("#deliveryMode"),
   appendSpace: $("#appendSpace"),
   cleanupText: $("#cleanupText"),
@@ -164,21 +199,78 @@ const elements = {
   autoStopEnabled: $("#autoStopEnabled"),
   silenceTimeout: $("#silenceTimeout"),
   autoStartEnabled: $("#autoStartEnabled"),
+  autoStartTitle: $("#autoStartTitle"),
+  autoStartDescription: $("#autoStartDescription"),
   closeBehavior: $("#closeBehavior"),
   shortcutMode: $("#shortcutMode"),
+  shortcutModeDescription: $("#shortcutModeDescription"),
   recordShortcut: $("#recordShortcut"),
   reprocessShortcut: $("#reprocessShortcut"),
   diagnosticsButton: $("#diagnosticsButton"),
   repairModelsButton: $("#repairModelsButton"),
+  installModelPackButton: $("#installModelPackButton"),
   performanceSummary: $("#performanceSummary"),
   performanceDetails: $("#performanceDetails"),
   checkUpdatesButton: $("#checkUpdatesButton"),
   restartUpdateButton: $("#restartUpdateButton"),
+  legalGate: $("#legalGate"),
+  acceptTermsCheckbox: $("#acceptTermsCheckbox"),
+  acceptTermsButton: $("#acceptTermsButton"),
+  declineTermsButton: $("#declineTermsButton"),
+  legalDocumentModal: $("#legalDocumentModal"),
+  legalDocumentTitle: $("#legalDocumentTitle"),
+  legalDocumentContent: $("#legalDocumentContent"),
+  closeLegalDocumentButton: $("#closeLegalDocumentButton"),
+  termsEsButton: $("#termsEsButton"),
+  termsEnButton: $("#termsEnButton"),
+  privacyEsButton: $("#privacyEsButton"),
+  privacyEnButton: $("#privacyEnButton"),
+  licensesButton: $("#licensesButton"),
+  aiActButton: $("#aiActButton"),
+  legalContactButton: $("#legalContactButton"),
+  erasePersonalDataButton: $("#erasePersonalDataButton"),
   toast: $("#toast")
 };
 
 function saveSettings() {
   persistState();
+}
+
+const platformNames = Object.freeze({ win32: "Windows", darwin: "macOS", linux: "Linux", browser: "el navegador" });
+
+function applyPlatformCapabilities() {
+  const capabilities = voiceAPI.runtime.capabilities
+    || resolvePlatformCapabilities(voiceAPI.runtime.platform, voiceAPI.runtime.isPackaged);
+  settings = normalizePlatformSettings(settings, capabilities);
+
+  const dmlOption = elements.inferenceDevice.querySelector('option[value="dml"]');
+  const supportsDml = capabilities.inferenceDevices.includes("dml");
+  dmlOption.hidden = !supportsDml;
+  dmlOption.disabled = !supportsDml;
+  elements.inferenceDeviceDescription.textContent = supportsDml
+    ? "DirectML usa la GPU de Windows y vuelve a CPU si no es compatible."
+    : "CPU es el motor local compatible con esta plataforma.";
+
+  const holdOption = elements.shortcutMode.querySelector('option[value="hold"]');
+  const supportsHold = capabilities.shortcutModes.includes("hold");
+  holdOption.hidden = !supportsHold;
+  holdOption.disabled = !supportsHold;
+  elements.shortcutModeDescription.textContent = supportsHold
+    ? "Alternar inicia y detiene con cada pulsación. Mantener graba hasta soltar."
+    : "Alternar inicia y detiene la grabación con cada pulsación.";
+
+  const platformName = platformNames[voiceAPI.runtime.platform] || "el sistema";
+  elements.autoStartTitle.textContent = `Iniciar con ${platformName}`;
+  elements.autoStartDescription.textContent = capabilities.autoStart
+    ? `Abre ${brand.displayName} silenciosamente al iniciar sesión.`
+    : "Disponible únicamente en una aplicación instalada.";
+  elements.autoStartEnabled.disabled = !capabilities.autoStart;
+
+  if (voiceAPI.runtime.platform === "darwin") {
+    [elements.recordShortcut, elements.reprocessShortcut].forEach((control) => {
+      [...control.options].forEach((option) => { option.textContent = option.textContent.replaceAll("Ctrl", "Cmd"); });
+    });
+  }
 }
 
 function persistState() {
@@ -198,6 +290,101 @@ function showToast(message) {
   elements.toast.classList.add("show");
   clearTimeout(showToast.timeout);
   showToast.timeout = setTimeout(() => elements.toast.classList.remove("show"), 2600);
+}
+
+const LEGAL_DOCUMENT_TITLES = Object.freeze({
+  "terms:es": "Términos de uso",
+  "terms:en": "Terms of Use",
+  "privacy:es": "Política de privacidad",
+  "privacy:en": "Privacy Policy",
+  "licenses:es": "Avisos de terceros",
+  "ai-act:es": "Evaluación del AI Act"
+});
+
+let legalDocumentReturnFocus;
+
+function renderLegalMarkdown(markdown) {
+  elements.legalDocumentContent.replaceChildren();
+  let list;
+  for (const sourceLine of String(markdown || "").split(/\r?\n/)) {
+    const line = sourceLine.trim();
+    if (!line) {
+      list = undefined;
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      list = undefined;
+      const node = document.createElement(`h${heading[1].length}`);
+      node.textContent = heading[2];
+      elements.legalDocumentContent.append(node);
+      continue;
+    }
+    if (line.startsWith("- ")) {
+      if (!list) {
+        list = document.createElement("ul");
+        elements.legalDocumentContent.append(list);
+      }
+      const item = document.createElement("li");
+      item.textContent = line.slice(2);
+      list.append(item);
+      continue;
+    }
+    list = undefined;
+    const node = document.createElement(line.startsWith("> ") ? "blockquote" : "p");
+    node.textContent = line.startsWith("> ") ? line.slice(2) : line;
+    elements.legalDocumentContent.append(node);
+  }
+}
+
+async function openLegalDocument(type, language = "es", trigger) {
+  legalDocumentReturnFocus = trigger || document.activeElement;
+  elements.legalDocumentTitle.textContent = LEGAL_DOCUMENT_TITLES[`${type}:${language}`] || "Documento legal";
+  elements.legalDocumentContent.replaceChildren();
+  const loading = document.createElement("p");
+  loading.textContent = "Cargando copia local…";
+  elements.legalDocumentContent.append(loading);
+  elements.legalDocumentModal.hidden = false;
+  try {
+    const documentData = await voiceAPI.legal.readDocument(type, language);
+    renderLegalMarkdown(documentData.content);
+    elements.legalDocumentContent.focus();
+  } catch (error) {
+    renderLegalMarkdown(`# No se pudo abrir el documento\n\n${error.message || error}`);
+  }
+}
+
+function closeLegalDocument() {
+  elements.legalDocumentModal.hidden = true;
+  legalDocumentReturnFocus?.focus?.();
+}
+
+async function ensureLegalAcceptance() {
+  const status = await voiceAPI.legal.getStatus();
+  if (status.accepted) {
+    legalReady = true;
+    return;
+  }
+  elements.legalGate.hidden = false;
+  elements.acceptTermsCheckbox.checked = false;
+  elements.acceptTermsButton.disabled = true;
+  elements.acceptTermsCheckbox.focus();
+  await new Promise((resolve) => {
+    const accept = async () => {
+      elements.acceptTermsButton.disabled = true;
+      try {
+        await voiceAPI.legal.acceptCurrentTerms();
+        legalReady = true;
+        elements.legalGate.hidden = true;
+        elements.acceptTermsButton.removeEventListener("click", accept);
+        resolve();
+      } catch (error) {
+        elements.acceptTermsButton.disabled = !elements.acceptTermsCheckbox.checked;
+        showToast(`No fue posible registrar la aceptación: ${error.message || error}`);
+      }
+    };
+    elements.acceptTermsButton.addEventListener("click", accept);
+  });
 }
 
 function armTwoStepConfirm(button, confirmLabel, onConfirm, guard) {
@@ -291,6 +478,10 @@ async function updateMicrophones() {
 }
 
 async function beginRecording(source = "button") {
+  if (!legalReady) {
+    showToast("Acepta los Términos antes de usar el micrófono.");
+    return;
+  }
   if (recording || processing) return;
   triggerSource = source;
   try {
@@ -310,6 +501,16 @@ async function beginRecording(source = "button") {
     voiceActivityDetector = createVoiceActivityDetector({ silenceTimeoutMs: Number(settings.silenceTimeoutMs) });
     audioContext = new AudioContext({ sampleRate: 16000, latencyHint: "interactive" });
     await audioContext.audioWorklet.addModule("src/pcm-capture-worklet.js");
+    const profile = resolveWhisperProfile(settings.whisperProfile);
+    const session = await voiceAPI.transcription.start({
+      language: settings.language,
+      mode: settings.transcriptionMode,
+      engine: settings.transcriptionMode === "auto" ? "auto" : settings.transcriptionEngine,
+      profileId: profile.id,
+      device: settings.inferenceDevice,
+      sampleRate: audioContext.sampleRate
+    });
+    transcriptionSessionId = session.id;
     audioSource = audioContext.createMediaStreamSource(mediaStream);
     captureNode = new AudioWorkletNode(audioContext, "voiceflow-pcm-capture");
     silentGain = audioContext.createGain();
@@ -320,6 +521,12 @@ async function beginRecording(source = "button") {
     captureNode.port.onmessage = (event) => {
       if (event.data instanceof Float32Array && event.data.length) {
         recordedPcmChunks.push(event.data);
+        if (transcriptionSessionId) voiceAPI.transcription.pushAudio(transcriptionSessionId, event.data);
+        return;
+      }
+      if (event.data?.type === "flushed") {
+        captureFlushResolver?.();
+        captureFlushResolver = undefined;
         return;
       }
       if (event.data?.type === "level") handleVoiceLevel(event.data.rms);
@@ -345,6 +552,8 @@ async function beginRecording(source = "button") {
     updateOverlay("recording", instruction, "00:00");
   } catch (error) {
     console.error(error);
+    if (transcriptionSessionId) await voiceAPI.transcription.cancel(transcriptionSessionId).catch(() => {});
+    transcriptionSessionId = undefined;
     await releaseAudioCapture();
     setStatus("idle", "No pudimos acceder al micrófono.");
     showToast(`Micrófono no disponible: ${error.message || error.name}`);
@@ -373,6 +582,22 @@ function collectRecording() {
   return trimEdgeSilence(resampleAudio(samples, audioContext?.sampleRate || 16000));
 }
 
+function flushCapture(timeoutMs = 250) {
+  if (!captureNode) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(finish, timeoutMs);
+    captureFlushResolver = finish;
+    captureNode.port.postMessage("flush");
+  });
+}
+
 function cleanText(text) {
   return cleanTranscription(text, {
     cleanup: settings.cleanupText,
@@ -382,7 +607,7 @@ function cleanText(text) {
   });
 }
 
-async function processAudio(audio, source = "button") {
+async function processAudio(audio, source = "button", sessionContext = {}) {
   if (!audio) {
     showToast("Todavía no hay una grabación para reprocesar.");
     finishOverlay("error", "Todavía no hay una grabación para reprocesar.");
@@ -396,22 +621,43 @@ async function processAudio(audio, source = "button") {
     elements.modelBadge.classList.remove("error");
     elements.modelBadge.innerHTML = "<span></span>Preparando motor local";
     const profile = resolveWhisperProfile(settings.whisperProfile);
-    const result = await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
+    const ipcStartedAt = performance.now();
+    const result = sessionContext.sessionId
+      ? await voiceAPI.transcription.finish(sessionContext.sessionId)
+      : await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
+    const rendererTranscriptionMs = Math.round(performance.now() - ipcStartedAt);
+    if (sessionContext.sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
+    const textFinalizeStartedAt = performance.now();
     const rawText = typeof result === "string" ? result : result.text;
     if (!rawText) throw new Error("El motor no devolvió texto.");
     const text = cleanText(rawText);
+    const textFinalizeMs = Math.round(performance.now() - textFinalizeStartedAt);
     if (!text.trim()) throw new Error("No detectamos palabras claras en la grabación.");
     elements.modelBadge.classList.remove("loading", "error");
     elements.modelBadge.innerHTML = `<span></span>${profile.shortLabel} · ${(result.device || "cpu").toUpperCase()}`;
-    await addHistory(text);
-    if (result.metrics) renderPerformance(result.metrics);
-    const delivery = await deliverText(text, source);
+    const delivery = await deliverText(text, source, sessionContext.captureFinishedAtEpochMs);
     finishOverlay(
       "success",
       delivery.pasted ? "Texto pegado. Continúa escribiendo." : "Transcripción copiada al portapapeles."
     );
+    refreshHistory().catch((error) => console.error("Could not refresh transcription history:", error));
+    if (result.metrics) {
+      const metrics = {
+        ...result.metrics,
+        ...sessionContext.timings,
+        ...delivery.metrics,
+        ipcMs: Math.max(0, rendererTranscriptionMs - (result.metrics.totalMs || 0)),
+        textFinalizeMs,
+        pasted: delivery.pasted,
+        success: true
+      };
+      renderPerformance(metrics).catch((error) => console.error("Could not render performance:", error));
+      voiceAPI.metrics.record(metrics).catch((error) => console.error("Could not record transcription metrics:", error));
+    }
   } catch (error) {
     console.error(error);
+    if (sessionContext.sessionId) await voiceAPI.transcription.cancel(sessionContext.sessionId).catch(() => {});
+    if (sessionContext.sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     elements.modelBadge.classList.remove("loading");
     elements.modelBadge.classList.add("error");
     elements.modelBadge.innerHTML = "<span></span>Motor no disponible";
@@ -426,41 +672,56 @@ async function processAudio(audio, source = "button") {
 async function renderPerformance(metrics) {
   const diagnostics = await voiceAPI.diagnostics();
   elements.performanceSummary.textContent = `${(metrics.totalMs / 1000).toFixed(1)} s total · ${metrics.realtimeFactor}x tiempo real`;
-  elements.performanceDetails.textContent = `Inferencia ${(metrics.inferenceMs / 1000).toFixed(1)} s · carga ${(metrics.modelLoadMs / 1000).toFixed(1)} s · memoria ${diagnostics.memoryRssMb} MB RSS`;
+  const modelWaitMs = metrics.modelWaitMs ?? metrics.modelLoadMs ?? 0;
+  const endToPaste = Number.isFinite(metrics.endToPasteMs) ? ` · fin a pegado ${(metrics.endToPasteMs / 1000).toFixed(2)} s` : "";
+  elements.performanceDetails.textContent = `Inferencia ${(metrics.inferenceMs / 1000).toFixed(1)} s · espera ${(modelWaitMs / 1000).toFixed(1)} s${endToPaste} · memoria ${diagnostics.memoryRssMb} MB RSS`;
 }
 
 async function finishRecording() {
   if (!recording) return;
+  const captureFinalizeStartedAt = performance.now();
   recording = false;
   processing = true;
   clearInterval(timerInterval);
-  captureNode?.port.postMessage("flush");
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  captureFinishedAtEpochMs = Date.now();
+  const sessionId = transcriptionSessionId;
+  await flushCapture();
+  const preprocessStartedAt = performance.now();
   try {
     lastAudio = collectRecording();
   } catch (error) {
     processing = false;
+    if (sessionId) await voiceAPI.transcription.cancel(sessionId).catch(() => {});
+    if (sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     setStatus("idle", error.message);
     finishOverlay("error", "No pudimos procesar la grabación.");
     return;
   } finally {
     await releaseAudioCapture();
   }
+  const timings = {
+    preprocessMs: Math.round(performance.now() - preprocessStartedAt),
+    captureFinalizeMs: Math.round(performance.now() - captureFinalizeStartedAt)
+  };
   const peak = lastAudio.reduce((maximum, sample) => Math.max(maximum, Math.abs(sample)), 0);
   if (lastAudio.length < 12000) {
     processing = false;
+    if (sessionId) await voiceAPI.transcription.cancel(sessionId).catch(() => {});
+    if (sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     setStatus("idle", "La grabación fue demasiado corta. Intenta de nuevo.");
     finishOverlay("error", "La grabación fue demasiado corta.");
     return;
   }
   if (peak < 0.002) {
     processing = false;
+    if (sessionId) await voiceAPI.transcription.cancel(sessionId).catch(() => {});
+    if (sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     setStatus("idle", "No detectamos voz. Revisa el micrófono seleccionado.");
     finishOverlay("error", "No detectamos voz. Revisa el micrófono.");
     return;
   }
   processing = false;
-  await processAudio(lastAudio, triggerSource);
+  await processAudio(lastAudio, triggerSource, { sessionId, captureFinishedAtEpochMs, timings });
 }
 
 function pasteFailureToastMessage(reason) {
@@ -470,36 +731,38 @@ function pasteFailureToastMessage(reason) {
   return "No se pudo pegar automáticamente. El texto quedó guardado en el portapapeles.";
 }
 
-async function deliverText(text, source) {
-  if (settings.deliveryMode === "copy" || settings.deliveryMode === "paste-copy") await voiceAPI.copy(text);
-  if (settings.deliveryMode === "paste-copy" && source === "shortcut") {
-    const pasted = await voiceAPI.paste(text);
-    if (pasted.ok) {
+async function deliverText(text, source, finishedAtEpochMs) {
+  const copy = settings.deliveryMode === "copy" || settings.deliveryMode === "paste-copy";
+  const shouldPaste = settings.deliveryMode === "paste-copy" && source === "shortcut";
+  const delivery = await voiceAPI.deliver(text, {
+    copy,
+    paste: shouldPaste,
+    saveHistory: true,
+    historyLimit: Number(settings.historyLimit),
+    captureFinishedAtEpochMs: finishedAtEpochMs
+  });
+  if (shouldPaste) {
+    if (delivery.pasted) {
       showToast("Texto pegado y guardado en el portapapeles.");
     } else {
-      showToast(pasteFailureToastMessage(pasted.reason));
-      if (pasted.reason === PASTE_FAILURE_REASON.PERMISSION_DENIED) {
+      showToast(pasteFailureToastMessage(delivery.reason));
+      if (delivery.reason === PASTE_FAILURE_REASON.PERMISSION_DENIED) {
         voiceAPI.notifyPastePermissionDenied().catch((error) => console.error("No se pudo mostrar el aviso de permisos:", error));
       }
     }
-    return { pasted: pasted.ok };
+    return delivery;
   } else if (settings.deliveryMode === "copy") {
     showToast("Texto guardado en el portapapeles.");
   } else {
     showToast("Transcripción lista.");
   }
-  return { pasted: false };
+  return delivery;
 }
 
 async function refreshHistory() {
   const rows = await voiceAPI.transcriptions.getAll(Number(settings.historyLimit));
   history = rows.map((row) => ({ id: row.id, text: row.texto, at: row.fecha }));
   renderHistory();
-}
-
-async function addHistory(text) {
-  await voiceAPI.transcriptions.add(text, Number(settings.historyLimit));
-  await refreshHistory();
 }
 
 function renderHistory() {
@@ -558,8 +821,11 @@ function renderDictionary() {
 async function hydrateSettings() {
   const profile = resolveWhisperProfile(settings.whisperProfile);
   elements.language.value = settings.language;
+  elements.transcriptionMode.value = settings.transcriptionMode === "advanced" ? "advanced" : "auto";
+  elements.transcriptionEngine.value = "transformers-js";
   elements.whisperProfile.value = profile.id;
   elements.inferenceDevice.value = settings.inferenceDevice;
+  syncAdvancedTranscriptionControls();
   elements.modelBadge.innerHTML = `<span></span>${profile.label} seleccionado`;
   elements.deliveryMode.value = settings.deliveryMode;
   elements.appendSpace.checked = settings.appendSpace;
@@ -579,12 +845,47 @@ async function hydrateSettings() {
   elements.closeBehavior.value = await voiceAPI.getCloseBehavior();
 }
 
+function syncAdvancedTranscriptionControls() {
+  const advanced = settings.transcriptionMode === "advanced";
+  elements.transcriptionEngine.disabled = !advanced;
+  elements.whisperProfile.disabled = !advanced;
+  const capabilities = voiceAPI.runtime.capabilities
+    || resolvePlatformCapabilities(voiceAPI.runtime.platform, voiceAPI.runtime.isPackaged);
+  elements.inferenceDevice.disabled = !advanced || capabilities.inferenceDevices.length < 2;
+}
+
 function toggleRecording(source = "button") {
+  if (!legalReady) {
+    showToast("Acepta los Términos antes de usar el micrófono.");
+    return;
+  }
   if (recording) finishRecording();
   else beginRecording(source);
 }
 
 $$(".nav-item").forEach((button) => button.addEventListener("click", () => switchPanel(button.dataset.panel)));
+elements.acceptTermsCheckbox.addEventListener("change", () => {
+  elements.acceptTermsButton.disabled = !elements.acceptTermsCheckbox.checked;
+});
+elements.declineTermsButton.addEventListener("click", () => voiceAPI.legal.declineCurrentTerms());
+elements.gateTermsEsButton.addEventListener("click", () => openLegalDocument("terms", "es", elements.gateTermsEsButton));
+elements.gateTermsEnButton.addEventListener("click", () => openLegalDocument("terms", "en", elements.gateTermsEnButton));
+elements.gatePrivacyEsButton.addEventListener("click", () => openLegalDocument("privacy", "es", elements.gatePrivacyEsButton));
+elements.gatePrivacyEnButton.addEventListener("click", () => openLegalDocument("privacy", "en", elements.gatePrivacyEnButton));
+elements.termsEsButton.addEventListener("click", () => openLegalDocument("terms", "es", elements.termsEsButton));
+elements.termsEnButton.addEventListener("click", () => openLegalDocument("terms", "en", elements.termsEnButton));
+elements.privacyEsButton.addEventListener("click", () => openLegalDocument("privacy", "es", elements.privacyEsButton));
+elements.privacyEnButton.addEventListener("click", () => openLegalDocument("privacy", "en", elements.privacyEnButton));
+elements.licensesButton.addEventListener("click", () => openLegalDocument("licenses", "es", elements.licensesButton));
+elements.aiActButton.addEventListener("click", () => openLegalDocument("ai-act", "es", elements.aiActButton));
+elements.legalContactButton.addEventListener("click", () => voiceAPI.legal.contact());
+elements.closeLegalDocumentButton.addEventListener("click", closeLegalDocument);
+elements.legalDocumentModal.addEventListener("click", (event) => {
+  if (event.target === elements.legalDocumentModal) closeLegalDocument();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.legalDocumentModal.hidden) closeLegalDocument();
+});
 elements.recordButton.addEventListener("click", () => toggleRecording("button"));
 elements.checkUpdatesButton.addEventListener("click", () => {
   voiceAPI.checkForUpdates();
@@ -598,6 +899,22 @@ armTwoStepConfirm(elements.clearHistory, "¿Confirmar borrado?", async () => {
   await refreshHistory();
   showToast("Historial borrado.");
 });
+armTwoStepConfirm(
+  elements.erasePersonalDataButton,
+  "¿Borrar datos y reiniciar?",
+  async () => {
+    showToast("Borrando datos personales locales y reiniciando…");
+    localStorage.clear();
+    await voiceAPI.eraseLocalPersonalData();
+  },
+  () => {
+    if (recording || processing) {
+      showToast("Finaliza la grabación o el procesamiento antes de borrar los datos.");
+      return false;
+    }
+    return true;
+  }
+);
 elements.historySearch.addEventListener("input", renderHistory);
 elements.exportHistory.addEventListener("click", async () => {
   if (!history.length) {
@@ -632,6 +949,8 @@ elements.microphone.addEventListener("change", () => {
 });
 [
   ["language", elements.language],
+  ["transcriptionMode", elements.transcriptionMode],
+  ["transcriptionEngine", elements.transcriptionEngine],
   ["whisperProfile", elements.whisperProfile],
   ["inferenceDevice", elements.inferenceDevice],
   ["deliveryMode", elements.deliveryMode],
@@ -723,6 +1042,16 @@ armTwoStepConfirm(
     return true;
   }
 );
+elements.installModelPackButton.addEventListener("click", async () => {
+  try {
+    const result = await voiceAPI.modelPacks.install();
+    if (result.canceled) return;
+    const pack = result.pack;
+    showToast(`Paquete ${pack.id} ${pack.version} instalado y verificado.`);
+  } catch (error) {
+    showToast(`No se pudo instalar el paquete: ${error.message || error}`);
+  }
+});
 elements.closeBehavior.addEventListener("change", async () => {
   await voiceAPI.setCloseBehavior(elements.closeBehavior.value);
   showToast("Comportamiento de cierre guardado.");
@@ -733,10 +1062,11 @@ elements.autoStartEnabled.addEventListener("change", async () => {
     settings.autoStartEnabled = await voiceAPI.setAutoStart(requested);
     elements.autoStartEnabled.checked = settings.autoStartEnabled;
     saveSettings();
-    showToast(settings.autoStartEnabled ? "Inicio con Windows activado." : "Inicio con Windows desactivado.");
+    const platformName = platformNames[voiceAPI.runtime.platform] || "el sistema";
+    showToast(settings.autoStartEnabled ? `Inicio con ${platformName} activado.` : `Inicio con ${platformName} desactivado.`);
   } catch (error) {
     elements.autoStartEnabled.checked = settings.autoStartEnabled;
-    showToast(`No fue posible cambiar el inicio con Windows: ${error.message || error}`);
+    showToast(`No fue posible cambiar el inicio automático: ${error.message || error}`);
   }
 });
 async function updateShortcuts() {
@@ -812,9 +1142,11 @@ voiceAPI.onModelProgress((progress) => {
 });
 
 async function initializeApp() {
+  await ensureLegalAcceptance();
   await voiceAPI.migrateLegacyState(legacyState);
   const persisted = await voiceAPI.getState();
   settings = { ...defaults, ...persisted.settings };
+  applyPlatformCapabilities();
   dictionary = persisted.dictionary;
   persistedMicrophone = persisted.microphone;
   clearMigratedLegacyStorage(localStorage, voiceAPI.runtime.preserveLegacyStorage);
@@ -824,7 +1156,8 @@ async function initializeApp() {
   await refreshHistory();
   renderDictionary();
   await updateMicrophones();
-  setStatus("idle", "Haz clic o usa Ctrl + Shift + Espacio.");
+  const modifier = voiceAPI.runtime.platform === "darwin" ? "Cmd" : "Ctrl";
+  setStatus("idle", `Haz clic o usa ${modifier} + Shift + Espacio.`);
 }
 
 initializeApp().catch((error) => {

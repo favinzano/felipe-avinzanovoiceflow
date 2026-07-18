@@ -47,6 +47,9 @@ jobs:
           test -f "$EXTRACT_DIR/squashfs-root/resources/app.asar" || { echo "Falta app.asar dentro del AppImage." >&2; exit 1; }
           ONNX_LINUX="$EXTRACT_DIR/squashfs-root/resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/linux"
           test -d "$ONNX_LINUX" || { echo "Falta el binario nativo de ONNX Runtime para linux: $ONNX_LINUX" >&2; exit 1; }
+          node scripts/verify-packaged-platform.cjs "--resources=$EXTRACT_DIR/squashfs-root/resources" --platform=linux --arch=x64
+          SELF_TEST_ROOT=$(mktemp -d)
+          xvfb-run -a "$EXTRACT_DIR/squashfs-root/AppRun" --no-sandbox --disable-gpu --self-test-desktop-bridge "--self-test-user-data=$SELF_TEST_ROOT"
           echo "Linux package verified: $APPIMAGE"
       - uses: actions/upload-artifact@v4
         with:

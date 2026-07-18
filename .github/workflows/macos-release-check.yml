@@ -58,8 +58,19 @@ jobs:
             test -f "$APP/Contents/Resources/app.asar" || { echo "Falta app.asar dentro del bundle $ARCH." >&2; exit 1; }
             ONNX_DARWIN="$APP/Contents/Resources/app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v3/darwin"
             test -d "$ONNX_DARWIN" || { echo "Falta el binario nativo de ONNX Runtime para darwin ($ARCH): $ONNX_DARWIN" >&2; exit 1; }
+            node scripts/verify-packaged-platform.cjs "--resources=$APP/Contents/Resources" --platform=darwin "--arch=$ARCH"
             echo "macOS package verified for $ARCH: $DMG"
           done
+      - name: Run packaged desktop bridge self-test
+        run: |
+          set -euo pipefail
+          HOST_ARCH=$(uname -m)
+          if [ "$HOST_ARCH" = "x86_64" ]; then HOST_ARCH="x64"; fi
+          if [ "$HOST_ARCH" = "x64" ]; then APP_DIR="release/mac"; else APP_DIR="release/mac-$HOST_ARCH"; fi
+          APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' | head -n1)
+          EXECUTABLE=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f | head -n1)
+          SELF_TEST_ROOT=$(mktemp -d)
+          "$EXECUTABLE" --disable-gpu --self-test-desktop-bridge "--self-test-user-data=$SELF_TEST_ROOT"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PRODUCT_SLUG }}-macos

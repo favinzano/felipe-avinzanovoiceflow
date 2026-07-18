@@ -1,6 +1,6 @@
 # Preparación Para Producción
 
-Estado actual: versión `1.1.9` en producción para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. Los instaladores se publican sin firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver advertencia correspondiente en el README y el bloqueador 1 más abajo.
+Estado actual: versión `1.1.9` técnicamente empaquetable para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64, pero **bloqueada para distribución externa** por `docs/LEGAL_RELEASE_GATE.md`. Además, los instaladores carecen de firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver el bloqueador correspondiente más abajo.
 
 ## Verificado
 
@@ -16,27 +16,28 @@ Estado actual: versión `1.1.9` en producción para Windows x64, macOS (Apple Si
 - Ejecutable empaquetado validado con Whisper Base y Whisper Large v3 Turbo.
 - Caché de modelos persistente en datos del usuario y acción de reparación.
 - Checksum SHA-256 generado automáticamente.
-- Política de privacidad, términos, licencia y avisos de terceros.
+- Borradores bilingües de Política de privacidad y Términos, licencia y avisos de terceros incluidos; pendientes de aprobación jurídica para publicación.
 - Estrategia de actualización manual y rollback documentada.
-- CI de Windows para validar y construir artefactos.
+- CI independiente de Windows, macOS y Linux para validar, ejecutar la autoprueba empaquetada y construir artefactos con sus módulos nativos.
 - Perfil de desarrollo aislado del perfil instalado y limpieza única del historial prerelease.
 - Cierre a bandeja con elección recordada, configuración visible y prueba empaquetada.
 - Workflow de firma pública que bloquea artefactos Authenticode inválidos.
 
 ## Bloqueadores Antes Del Lanzamiento Estable
 
-1. Firmar el ejecutable e instalador de Windows con un certificado de firma de código para reducir alertas de SmartScreen, y notarizar el `.dmg` de macOS para evitar el bloqueo de Gatekeeper.
-2. Ejecutar pruebas de aceptación con grabaciones reales:
+1. Aprobar completamente `docs/LEGAL_RELEASE_GATE.md`: buzón comercial, URLs HTTPS, email operativo, revisión jurídica escrita, aceptación, borrado y auditoría de red archivada.
+2. Firmar el ejecutable e instalador de Windows con un certificado de firma de código para reducir alertas de SmartScreen, y notarizar el `.dmg` de macOS para evitar el bloqueo de Gatekeeper.
+3. Ejecutar pruebas de aceptación con grabaciones reales:
    - Diferentes voces, acentos, micrófonos y niveles de ruido.
    - Dictados cortos y largos.
    - Emails, URLs, nombres propios y términos técnicos.
    - Medición de precisión, latencia y tasa de pegado exitoso.
-3. Probar en Windows 11 y en equipos adicionales con poca memoria y CPU más lenta. Windows 10 x64 ya fue validado en el entorno actual.
-4. Validar instalación sobre una versión anterior y rollback cuando exista un segundo instalador versionado.
+4. Completar la matriz física mínima: Windows 10/11, macOS Apple Silicon/Intel y Linux X11/Wayland, incluyendo equipos con poca memoria y CPU más lenta.
+5. Validar instalación sobre una versión anterior y rollback cuando exista un segundo instalador versionado.
 
 ## Problemas Conocidos
 
-- **`Windows Release Check` puede fallar intermitentemente en `npm run test:models`** al cargar el encoder de Whisper Large v3 Turbo (~2.5 GB) en los runners de Windows de GitHub. La causa raíz es un problema conocido y no resuelto en `@huggingface/transformers` ([issue #1279](https://github.com/huggingface/transformers.js/issues/1279)): su resolución de caché de archivos en Node.js puede fallar entre `cache.put()` y la siguiente `cache.match()`, sin volver al buffer que ya tiene en memoria. El síntoma cambia de forma entre ejecuciones (bloqueo tipo antivirus, lectura de tensor fuera de límites, o "Unable to get model file path or buffer."), pero es la misma causa. No se ha reproducido localmente ni en la autoprueba de carga de modelos de la aplicación empaquetada. Ver los comentarios en `src/model-smoke-utils.cjs` (`withFreshCacheRetry`) antes de seguir investigando. Mitigación actual: reintentos con directorio de caché nuevo en cada intento; una falla aislada aquí debe tratarse como intermitencia conocida (reejecutar el job), no como regresión.
+- **El smoke completo de Whisper en `Windows Release Check` es informativo** porque los runners de Windows de GitHub bloquean de forma intermitente los archivos ONNX recién descargados (`system error number 13`), incluso después de reintentos y cachés nuevas. La causa relacionada está documentada en `@huggingface/transformers` ([issue #1279](https://github.com/huggingface/transformers.js/issues/1279)). Windows conserva como requisitos bloqueantes la suite de producción, un modelo ONNX mínimo ejecutado con el binding nativo real, la inspección de los bindings empaquetados, el helper nativo y las autopruebas del instalador. Los smoke completos de Whisper siguen siendo bloqueantes en macOS y Linux; por tanto, una advertencia Windows sólo es aceptable si ambos pasan y el smoke ONNX Windows queda verde.
 
 - **`npm audit --omit=dev` reporta 7 vulnerabilidades moderadas heredadas de `@nut-tree-fork/nut-js@4.2.6`** (la última versión publicada) a través de su dependencia fijada a una versión exacta `jimp@0.22.10` → `file-type` ([GHSA-5v7r-6r5c-r473](https://github.com/advisories/GHSA-5v7r-6r5c-r473): bucle infinito en el parser ASF con entrada malformada). No existe todavía una versión corregida («No fix available» según `npm audit`), y como `nut-js` fija `jimp` a una versión exacta, no se puede resolver actualizando ni con `npm audit fix`. Esta aplicación solo usa la API `keyboard` de `nut-js` (ver `src/input-helper.cjs`); la ruta vulnerable (procesamiento de imágenes/captura de pantalla) nunca se invoca. Mitigación actual: el paso de auditoría en CI usa `--audit-level=critical` para no bloquear en este hallazgo moderado y documentado, sin dejar de fallar ante vulnerabilidades altas o críticas futuras. Revisar cuando `file-type` o `@jimp/core` publiquen una versión corregida.
 

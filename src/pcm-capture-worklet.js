@@ -1,14 +1,18 @@
 class PcmCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.buffer = new Float32Array(4096);
+    // 40 ms chunks let a streaming engine work while the user is speaking.
+    this.buffer = new Float32Array(Math.max(128, Math.round(sampleRate * 0.04)));
     this.offset = 0;
     this.levelSamples = 0;
     this.levelEnergy = 0;
     this.levelBars = new Float64Array(9);
     this.levelBarSamples = new Uint32Array(9);
     this.port.onmessage = (event) => {
-      if (event.data === "flush") this.flush();
+      if (event.data === "flush") {
+        this.flush();
+        this.port.postMessage({ type: "flushed" });
+      }
     };
   }
 

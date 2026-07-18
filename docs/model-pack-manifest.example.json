@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "parakeet-tdt-0.6b-v3-int8-es",
+  "version": "1.0.0",
+  "engine": "sherpa-onnx",
+  "profile": "fast",
+  "model": "identificador-local-del-modelo",
+  "languages": ["es"],
+  "license": "CC-BY-4.0",
+  "minAppVersion": "1.1.9",
+  "files": [
+    { "path": "model.onnx", "size": 0, "sha256": "REEMPLAZAR_CON_64_CARACTERES_HEXADECIMALES" },
+    { "path": "LICENSE.txt", "size": 0, "sha256": "REEMPLAZAR_CON_64_CARACTERES_HEXADECIMALES" }
+  ]
+}

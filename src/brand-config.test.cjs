@@ -52,7 +52,7 @@ assert.ok(Object.isFrozen(brand.repository), 'repository must be immutable');
 assert.ok(Object.isFrozen(brand.legacyDataNames), 'legacy names must be immutable');
 
 assert.equal(packageJson.name, expected.slug);
-assert.equal(packageJson.description, `${expected.displayName} - dictado privado y local para Windows`);
+assert.equal(packageJson.description, `${expected.displayName} - dictado privado y local para Windows, macOS y Linux`);
 assert.equal(packageJson.build.productName, expected.displayName);
 assert.equal(packageJson.build.appId, expected.appId);
 assert.deepEqual(packageJson.build.publish, [{
