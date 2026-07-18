@@ -95,6 +95,8 @@ assert.match(
   'signed workflow passes every matrix flavor explicitly to independent signature verification',
 );
 const windowsCheckWorkflow = fs.readFileSync(path.join(root, '.github/workflows/windows-release-check.yml'), 'utf8');
+assert.match(windowsCheckWorkflow, /Verify Windows ONNX Runtime native binding[\s\S]*?npm run test:onnx-runtime/, 'Windows blocks on a deterministic native ONNX smoke test');
+assert.match(windowsCheckWorkflow, /Run full Whisper smoke \(known upstream Windows runner flake\)[\s\S]*?continue-on-error:\s*true[\s\S]*?npm run test:models/, 'only the documented full Windows Whisper smoke is non-blocking');
 for (const [source, name] of [[signedWorkflow, 'signed release workflow'], [windowsCheckWorkflow, 'Windows release check workflow']]) {
   assert.doesNotMatch(source, forbidden, `${name} contains a legacy product identifier`);
   assert.match(source, /src\/brand-config\.json/, `${name} loads the canonical brand config`);
