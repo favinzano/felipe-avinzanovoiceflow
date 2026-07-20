@@ -2,9 +2,11 @@ const assert = require("assert");
 const {
   ACCURACY_DEFAULT_MARKER,
   clearMigratedLegacyStorage,
+  CPU_REVERT_MARKER,
   initializeProductionProfile,
   PERF_DEFAULT_MARKER,
   PRODUCTION_PROFILE_MARKER,
+  revertExperimentalDmlDefault,
   upgradeAccuracyDefault,
   upgradePerfDefault
 } = require("./data-migrations.cjs");
@@ -52,22 +54,26 @@ const targetStorage = createStorage({ "voice-settings": "settings", "voice-histo
 assert.deepEqual(clearMigratedLegacyStorage(targetStorage, false), ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]);
 for (const key of ["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]) assert.equal(targetStorage.has(key), false);
 
+// upgradePerfDefault now only nudges the profile to "balanced"; it never
+// switches the inference backend (DirectML was corrupting output).
 const perfUntouched = createStorage({});
 const migratedSettings = upgradePerfDefault(perfUntouched, { whisperProfile: "accurate", inferenceDevice: "cpu", language: "spanish" });
 assert.equal(migratedSettings.whisperProfile, "balanced");
-assert.equal(migratedSettings.inferenceDevice, "dml");
+assert.equal(migratedSettings.inferenceDevice, "cpu");
 assert.equal(migratedSettings.language, "spanish");
 assert.equal(perfUntouched.getItem(PERF_DEFAULT_MARKER), "initialized");
 
 const perfUntouchedNoKeys = createStorage({});
 const migratedFromEmpty = upgradePerfDefault(perfUntouchedNoKeys, {});
 assert.equal(migratedFromEmpty.whisperProfile, "balanced");
-assert.equal(migratedFromEmpty.inferenceDevice, "dml");
+assert.equal(migratedFromEmpty.inferenceDevice, undefined);
 
-const perfDeviceChanged = createStorage({});
-const notMigratedDevice = upgradePerfDefault(perfDeviceChanged, { whisperProfile: "accurate", inferenceDevice: "dml" });
-assert.equal(notMigratedDevice.inferenceDevice, "dml");
-assert.equal(notMigratedDevice.whisperProfile, "accurate");
+// A user already on DirectML still gets the profile nudge; the device is left
+// untouched here (the dedicated revert migration handles dml -> cpu).
+const perfDeviceDml = createStorage({});
+const nudgedDmlUser = upgradePerfDefault(perfDeviceDml, { whisperProfile: "accurate", inferenceDevice: "dml" });
+assert.equal(nudgedDmlUser.whisperProfile, "balanced");
+assert.equal(nudgedDmlUser.inferenceDevice, "dml");
 
 const perfProfileChanged = createStorage({});
 const notMigratedProfile = upgradePerfDefault(perfProfileChanged, { whisperProfile: "fast", inferenceDevice: "cpu" });
@@ -86,4 +92,21 @@ const secondRunFreshObject = upgradePerfDefault(perfIdempotent, { whisperProfile
 assert.equal(secondRunFreshObject.whisperProfile, "accurate");
 assert.equal(secondRunFreshObject.inferenceDevice, "cpu");
 
-console.log("Data migrations: 28 checks passed.");
+// revertExperimentalDmlDefault: one-time dml -> cpu correction for users the
+// earlier release force-migrated onto the corrupt DirectML backend.
+const dmlUser = createStorage({});
+const reverted = revertExperimentalDmlDefault(dmlUser, { inferenceDevice: "dml", whisperProfile: "balanced" });
+assert.equal(reverted.inferenceDevice, "cpu");
+assert.equal(reverted.whisperProfile, "balanced");
+assert.equal(dmlUser.getItem(CPU_REVERT_MARKER), "initialized");
+
+const cpuUser = createStorage({});
+const cpuUntouched = revertExperimentalDmlDefault(cpuUser, { inferenceDevice: "cpu" });
+assert.equal(cpuUntouched.inferenceDevice, "cpu");
+
+// Idempotent: once marked, a later manual dml opt-in is respected.
+const revertMarked = createStorage({ [CPU_REVERT_MARKER]: "initialized" });
+const manualDmlKept = revertExperimentalDmlDefault(revertMarked, { inferenceDevice: "dml" });
+assert.equal(manualDmlKept.inferenceDevice, "dml");
+
+console.log("Data migrations: 31 checks passed.");

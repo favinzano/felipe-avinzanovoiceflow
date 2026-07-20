@@ -8,6 +8,14 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.13] - 2026-07-20
+
+### Corregido
+
+- Revertida la aceleración DirectML como valor por defecto: la ruta experimental de GPU producía transcripciones corruptas (texto ilegible y repetido). El motor vuelve a CPU, estable, y DirectML queda disponible solo como opción avanzada opt-in.
+- Migración correctiva única que devuelve a CPU a los usuarios que la versión anterior había forzado a DirectML.
+- Corregido el desbordamiento horizontal de la ventana con transcripciones muy largas (ajuste de línea en el historial).
+
 ## [1.1.12] - 2026-07-20
 
 ### Cambiado

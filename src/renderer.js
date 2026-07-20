@@ -4,7 +4,7 @@ const { cleanTranscription } = require("./text-cleanup.cjs");
 const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
 const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault } = require("./data-migrations.cjs");
+const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault, revertExperimentalDmlDefault } = require("./data-migrations.cjs");
 const { initializeVisualizer } = require("./audio-visualizer.js");
 const { PASTE_FAILURE_REASON } = require("./paste-failure-reason.cjs");
 const { normalizePlatformSettings, resolvePlatformCapabilities } = require("./platform-capabilities.cjs");
@@ -122,7 +122,7 @@ const defaults = {
   transcriptionMode: "auto",
   transcriptionEngine: "transformers-js",
   whisperProfile: "balanced",
-  inferenceDevice: "dml",
+  inferenceDevice: "cpu",
   deliveryMode: "paste-copy",
   appendSpace: true,
   cleanupText: true,
@@ -1149,7 +1149,8 @@ async function initializeApp() {
   await ensureLegalAcceptance();
   await voiceAPI.migrateLegacyState(legacyState);
   const persisted = await voiceAPI.getState();
-  const migratedSettings = upgradePerfDefault(localStorage, persisted.settings);
+  let migratedSettings = upgradePerfDefault(localStorage, persisted.settings);
+  migratedSettings = revertExperimentalDmlDefault(localStorage, migratedSettings);
   const perfDefaultsApplied = migratedSettings !== persisted.settings;
   persisted.settings = migratedSettings;
   settings = { ...defaults, ...persisted.settings };
@@ -1168,7 +1169,7 @@ async function initializeApp() {
   document.documentElement.dataset.voiceflowInitialized = "true";
   if (perfDefaultsApplied) {
     persistState();
-    showToast("Activamos aceleración por GPU y un modo balanceado de velocidad. Puedes cambiarlo en Configuración.");
+    showToast("Ajustamos el motor de transcripción para mayor estabilidad. Puedes cambiarlo en Configuración.");
   }
 }
 
