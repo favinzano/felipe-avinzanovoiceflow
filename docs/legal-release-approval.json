@@ -1,6 +1,6 @@
 {
   "status": "owner_override",
-  "appVersion": "1.1.11",
+  "appVersion": "1.1.12",
   "termsVersion": "2026-07-17-beta-1",
   "legalEmail": "legal@felipeavinzano.com",
   "legalEmailCheck": {
@@ -32,9 +32,9 @@
   },
   "ownerOverride": {
     "authorizedBy": "Felipe Avinzano",
-    "authorizedAt": "2026-07-17T22:23:00.7057767-04:00",
-    "scopeVersion": "1.1.11",
-    "reason": "El propietario solicita publicar inmediatamente el hotfix 1.1.11 como latest y asume la responsabilidad por los requisitos externos aún pendientes.",
+    "authorizedAt": "2026-07-20T21:01:29.426Z",
+    "scopeVersion": "1.1.12",
+    "reason": "El propietario autoriza publicar 1.1.12 (unificación del lockup de marca VoiceFlow) como latest y asume la responsabilidad por los requisitos externos aún pendientes.",
     "acknowledgesIncompleteLegalReview": true,
     "acknowledgesUnverifiedOperationalRequirements": true,
     "acknowledgesUnsignedArtifacts": true,
