@@ -10,10 +10,12 @@
   --blue: #2c5f8a;
   --blue-light: #83a9c8;
   --fog: #5a6870;
-  --copper: #b66d45;
+  --copper: #b87333;
   --clay: #8a4f2e;
   --rule: rgba(13, 27, 42, .13);
   --rule-dark: rgba(244, 241, 235, .14);
+  --vf-brand-color-voice: var(--bone);
+  --vf-brand-color-flow: var(--copper);
 }
 
 * { box-sizing: border-box; }
@@ -31,6 +33,15 @@ button { cursor: pointer; }
   letter-spacing: -.035em;
   color: var(--copper);
 }
+
+/* VoiceFlow master lockup — dual-font signature (isotype + wordmark) */
+.brand-lockup { display: inline-flex; align-items: center; gap: var(--vf-gap); width: max-content; white-space: nowrap; }
+.brand-lockup .brand-symbol { width: var(--vf-x); height: var(--vf-x); flex: 0 0 var(--vf-x); color: var(--vf-brand-color-voice); }
+.brand-symbol__outline { stroke-width: 1.5px; }
+.brand-lockup .brand-wordmark { display: inline-flex; align-items: baseline; line-height: 1; white-space: nowrap; }
+.brand-wordmark__voice { font: 600 var(--vf-voice-size)/1 Geist; letter-spacing: -.015em; color: var(--vf-brand-color-voice); }
+.brand-lockup .brand-wordmark__flow { font-size: var(--vf-flow-size); line-height: 1; letter-spacing: -.01em; color: var(--vf-brand-color-flow); margin-left: -.02em; }
+.home-brand { --vf-x: 34px; --vf-gap: 12px; --vf-voice-size: 24px; --vf-flow-size: 26px; }
 .incision-mark { position: relative; display: inline-block; width: 22px; height: 22px; flex: none; }
 .incision-mark i { position: absolute; left: 2px; top: 3px; width: 14px; height: 14px; background: currentColor; transform: rotate(-4deg); }
 .incision-mark i + i { left: 6px; top: 4px; border: 1.5px solid currentColor; background: transparent; transform: rotate(4deg); }
@@ -39,11 +50,8 @@ button { cursor: pointer; }
 
 .app-shell { height: calc(100vh - 48px); display: grid; grid-template-columns: 250px 1fr; }
 .sidebar { display: flex; flex-direction: column; padding: 34px 18px 20px; color: var(--bone); background: var(--ink); }
-.side-brand { padding: 0 9px 32px; border-bottom: 1px solid var(--rule-dark); }
-.side-brand div strong, .side-brand div span { display: inline; }.side-brand strong { font: 550 17px/1.15 Geist; letter-spacing: -.025em; }.side-brand span { color: var(--fog); font-size: 12px; }
-.side-brand .side-wordmark .brand-flow { font-size: 1.08em; }
-.side-wordmark { min-width: 0; line-height: 1.15; }
-.side-brand .brand-flow, .footer-wordmark .brand-flow { color: var(--copper); }
+.side-brand { display: flex; align-items: center; gap: 0; min-height: 96px; padding: 0 10px; border-bottom: 1px solid var(--rule-dark); }
+.footer-wordmark .brand-flow { color: var(--copper); }
 .side-nav { display: grid; gap: 5px; margin-top: 25px; }
 .nav-item { display: grid; grid-template-columns: 30px 1fr; align-items: center; width: 100%; padding: 13px 11px; border: 0; border-left: 2px solid transparent; color: rgba(244,241,235,.72); background: transparent; text-align: left; font-size: 13px; line-height: 1.25; transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease; }
 .nav-item span { color: rgba(244,241,235,.46); font-size: 10px; }

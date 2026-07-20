@@ -16,7 +16,7 @@ const expected = {
   suffix: 'Flow',
   slug: 'felipe-avinzanovoiceflow',
   appId: 'com.felipeavinzano.voiceflow',
-  copper: '#B66D45',
+  copper: '#B87333',
   developmentName: 'felipe avinzano VoiceFlow Development',
   helperBaseName: 'FelipeAvinzano.VoiceFlow.PasteHelper',
   repository: {

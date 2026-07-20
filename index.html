@@ -19,8 +19,13 @@
     <main class="app-shell">
       <aside class="sidebar">
         <div class="side-brand">
-          <span class="incision-mark large" aria-hidden="true"><i></i><i></i></span>
-          <div class="side-wordmark" data-brand-label aria-label="felipe avinzano VoiceFlow"><strong>Voice</strong><span class="brand-flow" data-brand-suffix>Flow</span></div>
+          <span class="brand-lockup home-brand" role="img" aria-label="VoiceFlow">
+            <svg class="brand-symbol" viewBox="98 98 206 206" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="105" y="120" width="160" height="160" fill="currentColor" transform="rotate(-4 185 200)" />
+              <rect class="brand-symbol__outline" x="135" y="120" width="160" height="160" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke" transform="rotate(4 215 200)" />
+            </svg>
+            <span class="brand-wordmark" aria-hidden="true"><span class="brand-wordmark__voice">Voice</span><span class="brand-wordmark__flow brand-flow" data-brand-suffix>Flow</span></span>
+          </span>
         </div>
 
         <nav class="side-nav" aria-label="Navegación principal">
@@ -75,7 +80,7 @@
 
         <div class="panel" id="transcriptsPanel">
           <header class="page-header">
-            <div><p class="eyebrow">02 / Historial</p><h1>Cada palabra que dictaste,<br />en un solo lugar.</h1><p class="page-lead">Busca, exporta o borra tus transcripciones. Todo permanece en este equipo.</p></div>
+            <div><p class="eyebrow">02 / Historial</p><h1>Cada palabra que dictaste,<br /><span class="hero-emphasis">en un solo lugar</span>.</h1><p class="page-lead">Busca, exporta o borra tus transcripciones. Todo permanece en este equipo.</p></div>
           </header>
           <section class="transcript-section">
             <div class="section-heading">
@@ -88,7 +93,7 @@
 
         <div class="panel" id="dictionaryPanel">
           <header class="page-header">
-            <div><p class="eyebrow">03 / Precisión personal</p><h1>Palabras que deben<br />quedar bien.</h1><p class="page-lead">Añade nombres, marcas y términos técnicos. Se aplicarán después de cada transcripción.</p></div>
+            <div><p class="eyebrow">03 / Precisión personal</p><h1>Palabras que deben<br /><span class="hero-emphasis">quedar bien</span>.</h1><p class="page-lead">Añade nombres, marcas y términos técnicos. Se aplicarán después de cada transcripción.</p></div>
           </header>
           <section class="feature-card dictionary-builder">
             <div><span class="card-kicker">Nuevo término</span><h2>Enseña una palabra al sistema.</h2><p>Escribe la forma exacta que quieres conservar.</p></div>
@@ -99,7 +104,7 @@
 
         <div class="panel" id="settingsPanel">
           <header class="page-header">
-            <div><p class="eyebrow">04 / Control del sistema</p><h1>Configura el flujo.<br />No la complejidad.</h1><p class="page-lead">Cada ajuste está conectado al comportamiento real de la aplicación.</p></div>
+            <div><p class="eyebrow">04 / Control del sistema</p><h1>Configura el flujo.<br />No la <span class="hero-emphasis">complejidad</span>.</h1><p class="page-lead">Cada ajuste está conectado al comportamiento real de la aplicación.</p></div>
           </header>
           <div class="settings-groups">
             <section class="settings-group">
@@ -154,7 +159,7 @@
         </div>
 
         <div class="panel" id="supportPanel">
-          <header class="page-header"><div><p class="eyebrow">06 / Soporte</p><h1>Resuelve lo importante.<br />Sin rodeos.</h1><p class="page-lead">La información de diagnóstico nunca incluye tus transcripciones.</p></div></header>
+          <header class="page-header"><div><p class="eyebrow">06 / Soporte</p><h1>Resuelve lo importante.<br /><span class="hero-emphasis">Sin rodeos</span>.</h1><p class="page-lead">La información de diagnóstico nunca incluye tus transcripciones.</p></div></header>
           <div class="support-grid">
             <section class="feature-card"><span class="card-kicker">Diagnóstico</span><h2>¿Algo no funciona?</h2><p>Copia información técnica básica para compartirla con soporte.</p><button id="diagnosticsButton">Copiar diagnóstico</button></section>
             <section class="feature-card"><span class="card-kicker">Recuperación</span><h2>Validar modelos locales.</h2><p>Comprueba el modelo instalado sin borrarlo ni conectarse a Internet. Si falla, instala de nuevo su paquete offline.</p><button id="repairModelsButton">Validar modelos</button></section>

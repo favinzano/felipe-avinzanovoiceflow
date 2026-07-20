@@ -90,7 +90,7 @@ function assertVisualWordmark(html, className, surface) {
 
 function assertBrandCss(css, surface) {
   assert.match(css, /@font-face\s*\{[^}]*font-family:\s*["']?DM Serif Display["']?[^}]*font-weight:\s*400[^}]*\}/, `${surface} loads DM Serif Display at its native weight`);
-  assert.match(css, /--copper:\s*#b66d45/i, `${surface} defines the approved copper token`);
+  assert.match(css, /--copper:\s*#b87333/i, `${surface} defines the approved copper token`);
   assert.match(css, /\.brand-flow\s*\{[^}]*font-family:\s*["']DM Serif Display["']\s*,\s*serif[^}]*font-weight:\s*400[^}]*color:\s*var\(--copper\)[^}]*\}/, `${surface} styles only the Flow suffix in copper DM Serif`);
   const dmSerifName = String.raw`(?:["']DM\s+Serif\s+Display["']|DM\s+Serif\s+Display)`;
   const dmSerifDeclaration = new RegExp(
@@ -116,13 +116,13 @@ assert.doesNotMatch(
 );
 assert.match(
   indexHtml,
-  /class=["']side-wordmark["'][^>]*data-brand-label[^>]*aria-label=["']felipe avinzano VoiceFlow["'][^>]*>[\s\S]{0,40}?<strong>Voice<\/strong>[\s\S]{0,160}?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</,
-  "sidebar wordmark shows only VoiceFlow (a static Voice plus the dynamic Flow suffix), labeled with the full brand name"
+  /class=["']brand-lockup home-brand["'][^>]*aria-label=["']VoiceFlow["'][\s\S]{0,200}?<svg class=["']brand-symbol["'][\s\S]{0,800}?class=["']brand-wordmark__voice["']>Voice<[\s\S]{0,120}?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</,
+  "homepage lockup reads only VoiceFlow (SVG isotype + sans Voice + dynamic serif Flow suffix), labeled VoiceFlow"
 );
 assert.doesNotMatch(
   indexHtml,
-  /class=["']side-wordmark["'][^>]*>[\s\S]{0,200}?data-brand-base/,
-  "sidebar wordmark no longer renders the felipe avinzano prefix"
+  /class=["']brand-lockup home-brand["'][\s\S]{0,400}?felipe avinzano/,
+  "homepage lockup never reintroduces the felipe avinzano fallback"
 );
 assertVisualWordmark(indexHtml, "footer-wordmark", "sidebar footer wordmark");
 assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*data-brand-label-suffix-template=["'], versión \{version\}["']/, "footer wordmark composes its accessible label suffix from the runtime version, not a hardcoded one");
@@ -130,7 +130,8 @@ assert.match(indexHtml, /class=["']footer-wordmark["'][^>]*>[\s\S]{0,320}?data-a
 assertVisualWordmark(indexHtml, "about-wordmark", "about wordmark");
 assert.match(indexHtml, /<dt>Versión<\/dt><dd data-app-version><\/dd>/, "about panel renders the runtime version instead of a hardcoded one");
 assert.doesNotMatch(indexHtml, /\b1\.1\.\d+\b/, "index.html never hardcodes a version number that will drift from package.json");
-assert.match(overlayHtml, /<strong[^>]*data-brand-label[^>]*>[\s\S]*?data-brand-base[^>]*>felipe avinzano Voice<[\s\S]*?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay wordmark has its own labeled base and Flow suffix targets");
+assert.match(overlayHtml, /class=["']brand-lockup overlay-brand["'][^>]*aria-label=["']VoiceFlow["'][\s\S]{0,200}?<svg class=["']brand-symbol["'][\s\S]{0,800}?class=["']brand-wordmark__voice["']>Voice<[\s\S]{0,120}?class=["'][^"']*brand-flow[^"']*["'][^>]*data-brand-suffix[^>]*>Flow</, "overlay lockup reads only VoiceFlow (SVG isotype + sans Voice + dynamic serif Flow suffix), labeled VoiceFlow");
+assert.doesNotMatch(overlayHtml, /data-brand-base[^>]*>felipe avinzano/, "overlay lockup no longer renders the felipe avinzano base");
 assert.match(indexHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "main HTML has a complete fallback title");
 assert.match(overlayHtml, /<title>felipe avinzano VoiceFlow<\/title>/, "overlay HTML has a complete fallback title");
 assert.match(overlayHtml, /<canvas class=["']signal["'][^>]*id=["']signal["'][^>]*><\/canvas>/, "overlay HTML renders the live waveform canvas");
@@ -171,7 +172,7 @@ assert.match(preload, /appVersion\s*=\s*readEncodedArgument\(["']--voiceflow-app
 assert.match(preload, /appVersion,/, "main preload exposes appVersion to the renderer");
 assert.doesNotMatch(overlayPreload, /appVersion/, "overlay preload remains outside the version display contract");
 assert.match(main, /`--voiceflow-app-version=\$\{encodeURIComponent\(app\.getVersion\(\)\)\}`/, "main passes the real app.getVersion() through the same appended-argument channel the update dialog uses");
-assert.match(renderer, /brand:\s*\{[\s\S]*displayName:\s*["']felipe avinzano VoiceFlow["'][\s\S]*baseName:\s*["']felipe avinzano Voice["'][\s\S]*suffix:\s*["']Flow["'][\s\S]*copper:\s*["']#B66D45["']/, "browser preview exposes the approved brand fallback");
+assert.match(renderer, /brand:\s*\{[\s\S]*displayName:\s*["']felipe avinzano VoiceFlow["'][\s\S]*baseName:\s*["']felipe avinzano Voice["'][\s\S]*suffix:\s*["']Flow["'][\s\S]*copper:\s*["']#B87333["']/, "browser preview exposes the approved brand fallback");
 assert.doesNotMatch(renderer, /brandWordmarkMarkup/, "the retired guide's split-brand markup helper is not reintroduced");
 assert.match(renderer, /`\$\{brand\.displayName\} diagnostics`/, "diagnostics use the complete runtime display name");
 assert.doesNotMatch(renderer, /NextStepAI|nextstepai\.com/, "diagnostics copy no longer exposes the legacy brand");

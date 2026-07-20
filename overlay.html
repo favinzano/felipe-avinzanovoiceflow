@@ -9,8 +9,13 @@
   <body>
     <main class="overlay" data-status="recording" id="overlay">
       <div class="brand-row">
-        <span class="incision"><i></i><i></i></span>
-        <strong data-brand-label aria-label="felipe avinzano VoiceFlow"><span data-brand-base>felipe avinzano Voice</span><span class="brand-flow" data-brand-suffix>Flow</span></strong>
+        <span class="brand-lockup overlay-brand" role="img" aria-label="VoiceFlow">
+          <svg class="brand-symbol" viewBox="98 98 206 206" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="105" y="120" width="160" height="160" fill="currentColor" transform="rotate(-4 185 200)" />
+            <rect class="brand-symbol__outline" x="135" y="120" width="160" height="160" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke" transform="rotate(4 215 200)" />
+          </svg>
+          <span class="brand-wordmark" aria-hidden="true"><span class="brand-wordmark__voice">Voice</span><span class="brand-wordmark__flow brand-flow" data-brand-suffix>Flow</span></span>
+        </span>
         <span class="status-dot"></span>
       </div>
       <canvas class="signal" id="signal" aria-hidden="true"></canvas>

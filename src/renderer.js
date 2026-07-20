@@ -14,7 +14,7 @@ const voiceAPI = window.voiceAPI || {
     displayName: "felipe avinzano VoiceFlow",
     baseName: "felipe avinzano Voice",
     suffix: "Flow",
-    copper: "#B66D45"
+    copper: "#B87333"
   },
   runtime: {
     isPackaged: false,

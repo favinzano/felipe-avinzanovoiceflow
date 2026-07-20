@@ -2,15 +2,14 @@
 @font-face { font-family: Geist; src: url("assets/fonts/Geist-Italic-Variable.woff2") format("woff2"); font-style: italic; font-weight: 100 900; }
 @font-face { font-family: "DM Serif Display"; src: url("assets/fonts/DMSerifDisplay-Regular.ttf") format("truetype"); font-style: normal; font-weight: 400; }
 
-:root { --copper: #b66d45; --blue: #2c5f8a; --blue-light: #83a9c8; }
+:root { --copper: #b87333; --blue: #2c5f8a; --blue-light: #83a9c8; --vf-brand-color-voice: #f4f1eb; --vf-brand-color-flow: var(--copper); }
 
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; font-family: Geist, sans-serif; }
-.overlay { position: absolute; inset: 6px; padding: 15px 17px 13px; overflow: hidden; color: #f4f1eb; background: rgba(13, 27, 42, .97); border: 1px solid rgba(244, 241, 235, .15); border-radius: 14px; box-shadow: 0 14px 34px rgba(13, 27, 42, .28); }
+.overlay { position: absolute; inset: 6px; padding: 16px 17px 13px; overflow: hidden; color: #f4f1eb; background: rgba(13, 27, 42, .97); border: 1px solid rgba(244, 241, 235, .15); border-radius: 14px; box-shadow: 0 14px 34px rgba(13, 27, 42, .28); }
 .overlay::after { content: ""; position: absolute; width: 90px; height: 90px; right: -52px; top: -39px; border: 1px solid rgba(244, 241, 235, .08); transform: rotate(4deg); }
 .brand-row, .message-row { display: flex; align-items: center; }
-.brand-row { gap: 8px; height: 18px; }
-.brand-row strong { font-size: 12px; font-weight: 550; letter-spacing: -.02em; }
+.brand-row { gap: 8px; min-height: 16px; }
 .brand-flow {
   font-family: "DM Serif Display", serif;
   font-size: 1.08em;
@@ -18,9 +17,18 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
   letter-spacing: -.035em;
   color: var(--copper);
 }
-.status-dot { width: 5px; height: 5px; margin-left: auto; background: #b66d45; }
-.incision { position: relative; display: block; width: 17px; height: 17px; }.incision i { position: absolute; left: 1px; top: 2px; width: 11px; height: 11px; background: #f4f1eb; transform: rotate(-4deg); }.incision i + i { left: 4px; top: 3px; border: 1px solid #f4f1eb; background: transparent; transform: rotate(4deg); }
-.signal { width: 100%; height: 26px; display: block; margin: 10px 0 7px; }
+
+/* VoiceFlow master lockup — compact overlay variant */
+.brand-lockup { display: inline-flex; align-items: center; gap: var(--vf-gap); width: max-content; white-space: nowrap; }
+.brand-lockup .brand-symbol { width: var(--vf-x); height: var(--vf-x); flex: 0 0 var(--vf-x); color: var(--vf-brand-color-voice); }
+.brand-symbol__outline { stroke-width: 1.1px; }
+.brand-lockup .brand-wordmark { display: inline-flex; align-items: baseline; line-height: 1; white-space: nowrap; }
+.brand-wordmark__voice { font: 600 var(--vf-voice-size)/1 Geist; letter-spacing: -.015em; color: var(--vf-brand-color-voice); }
+.brand-lockup .brand-wordmark__flow { font-size: var(--vf-flow-size); line-height: 1; letter-spacing: -.01em; color: var(--vf-brand-color-flow); margin-left: -.02em; }
+.overlay-brand { --vf-x: 16px; --vf-gap: 6px; --vf-voice-size: 14px; --vf-flow-size: 15px; }
+
+.status-dot { width: 5px; height: 5px; margin-left: auto; background: #b87333; }
+.signal { width: 100%; height: 26px; display: block; margin: 12px 0 7px; }
 .message-row { justify-content: space-between; padding-top: 9px; border-top: 1px solid rgba(244, 241, 235, .12); color: rgba(244, 241, 235, .72); font-size: 11px; letter-spacing: 0; }
 .message-row b { color: rgba(244, 241, 235, .9); font-size: 11px; font-variant-numeric: tabular-nums; }
 .overlay[data-status="processing"] .status-dot { background: #83a9c8; }

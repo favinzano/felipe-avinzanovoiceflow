@@ -8,6 +8,14 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.1.12] - 2026-07-20
+
+### Cambiado
+
+- Rediseñado el lockup de marca "VoiceFlow" como firma dual-font consistente en la página de inicio y el overlay: isotipo SVG "La Incisión" + "Voice" en Geist y "Flow" en DM Serif Display copper, con sistema de proporciones basado en X (altura del isotipo) y clear space definido por contexto.
+- Retirado el respaldo "felipe avinzano" del encabezado del overlay; el lockup maestro en ambas superficies es únicamente "VoiceFlow".
+- Reconciliado el color Copper de marca a `#B87333` (valor canónico del brief) en toda la interfaz, configuración y documentación de diseño.
+
 ## [1.1.11] - 2026-07-17
 
 ### Corregido

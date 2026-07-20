@@ -7,7 +7,7 @@ colors:
   paper: "#fbfaf7"
   signal-blue: "#2c5f8a"
   blue-light: "#83a9c8"
-  incision-copper: "#b66d45"
+  incision-copper: "#b87333"
   copper-muted: "#d17d61"
   clay: "#8a4f2e"
   rust: "#7a5544"
@@ -102,7 +102,7 @@ The system explicitly rejects the visual language of cloud transcription SaaS: n
 The palette is a cool, near-black ink against warm bone and paper neutrals, with exactly one warm accent (copper) and one cool accent (signal blue) doing all the work.
 
 ### Primary
-- **Incision Copper** (#b66d45): The product's single expressive color. Marks active/recording state, active nav indicator, and the "Flow" wordmark/hero-emphasis segment (large text only — at small sizes this hex falls to ~3.5:1 contrast on bone/paper, below WCAG AA). Used sparingly — its rarity is what makes it read as a signal rather than decoration. A muted variant, **Copper Ash** (#d17d61), marks error state in the floating overlay only.
+- **Incision Copper** (#b87333): The product's single expressive color, matching the canonical brand brief (Copper #B87333). Marks active/recording state, active nav indicator, and the "Flow" wordmark/hero-emphasis segment (large text only — at small sizes this hex falls to ~3.3:1 contrast on bone/paper, below WCAG AA for body text but above the 3:1 threshold for large/display type and non-text UI, which is its only sanctioned use). Used sparingly — its rarity is what makes it read as a signal rather than decoration. A muted variant, **Copper Ash** (#d17d61), marks error state in the floating overlay only.
 - **Clay** (#8a4f2e): A darkened, text-safe copper reserved for small uppercase labels on light backgrounds — history timestamps, empty-state tags, guide tags/footer labels. Clears 4.5:1 against bone/paper where raw Incision Copper does not. Same hue family as the accent, shifted toward ink for legibility; never used at large sizes (Incision Copper covers those).
 - **Rust** (#7a5544): A muted warm brown reserved for low-emphasis destructive actions (delete term, delete history entry) and the "before" struck-through text in the guide demo. Deliberately quieter than Clay/Copper — this is a de-emphasized affordance, not an accent.
 
@@ -180,7 +180,7 @@ Two overlapping squares — one solid-filled, one outlined — each rotated ±4d
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** use exactly one accent color (incision copper #b66d45) for state and emphasis; let signal blue (#2c5f8a) carry all other interactive/informational meaning.
+- **Do** use exactly one accent color (incision copper #b87333) for state and emphasis; let signal blue (#2c5f8a) carry all other interactive/informational meaning.
 - **Do** keep in-app corners sharp — `border-radius: 0` on cards, buttons, inputs, and containers. Reserve the documented 14px radius exclusively for the floating capture overlay.
 - **Do** use hairline borders (`1px solid`, ink or bone at ~13% opacity) as the default way to separate surfaces.
 - **Do** reserve hard, offset, unblurred shadows for elements that are interactive, floating, or transient (record button, overlay, toast) — never as ambient decoration on a resting card.
