@@ -113,6 +113,11 @@ jobs:
       - name: Fetch whisper.cpp sidecar binary
         run: node scripts/fetch-whisper-binaries.cjs
 
+      - name: Whisper.cpp sidecar smoke test
+        env:
+          WHISPER_SMOKE: "1"
+        run: node src/whisper-cpp-smoke.test.cjs
+
       - name: Package ${{ matrix.target }} installer
         shell: pwsh
         run: |
