@@ -1027,8 +1027,8 @@ app.whenReady().then(async () => {
   transcriptionEngine = createTranscriptionEngine({
     whisperCpp: whisperCppService,
     fallback: {
-      transcribe: (audio, language, profile) =>
-        transcriptionService.transcribe(audio, language, profile.id, "cpu")
+      transcribe: (audio, language, profile, device) =>
+        transcriptionService.transcribe(audio, language, profile.id, device)
     }
   });
   if (process.platform === "win32") inputStrategy.warm?.();
@@ -1221,12 +1221,12 @@ ipcMain.handle("transcriptions:clear", () => clearTranscriptions());
 ipcMain.handle("transcriptions:trim", (_event, limit) => trimTranscriptions(limit));
 ipcMain.handle("transcriptions:migrate-legacy", (_event, entries) => migrateLegacyHistory(entries));
 
-ipcMain.handle("transcription:run", async (_event, audio, language, profileId, _device) => {
+ipcMain.handle("transcription:run", async (_event, audio, language, profileId, device) => {
   if (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)) {
     throw new Error("Current Terms have not been accepted.");
   }
   const profile = resolveWhisperProfile(profileId);
-  return transcriptionEngine.transcribe(audio, language, profile);
+  return transcriptionEngine.transcribe(audio, language, profile, device);
 });
 
 ipcMain.handle("transcription:start", (_event, configuration) => {

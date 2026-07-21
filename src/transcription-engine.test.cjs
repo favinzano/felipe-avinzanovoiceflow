@@ -24,5 +24,13 @@ const fallback = { transcribe: async () => ({ text: "fb", engine: "transformers-
   // whisper unavailable -> fallback immediately
   const e4 = createTranscriptionEngine({ whisperCpp: { isAvailable: () => false, transcribe: async () => { throw new Error("x"); } }, fallback });
   assert.equal((await e4.transcribe(new Float32Array(1), "es", {})).engine, "transformers-js");
-  console.log("transcription-engine: 4 checks passed.");
+
+  // the caller's inference device is threaded through to the fallback (honors an
+  // explicit DirectML opt-in) — whisper.cpp itself is CPU-only and ignores it
+  let seenDevice;
+  const deviceCapturingFallback = { transcribe: async (_f, _l, _p, device) => { seenDevice = device; return { text: "fb", engine: "transformers-js", device }; } };
+  const e5 = createTranscriptionEngine({ whisperCpp: { isAvailable: () => false, transcribe: async () => { throw new Error("x"); } }, fallback: deviceCapturingFallback });
+  await e5.transcribe(new Float32Array(1), "es", {}, "dml");
+  assert.equal(seenDevice, "dml", "device is passed through to the fallback");
+  console.log("transcription-engine: 5 checks passed.");
 })();
