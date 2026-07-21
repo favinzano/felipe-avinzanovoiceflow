@@ -18,4 +18,11 @@ assert.equal(resolveWhisperProfile("accurate").dtype, "q8");
 assert.equal(resolveWhisperProfile("invalid"), WHISPER_PROFILES.balanced);
 assert.equal(resolveWhisperProfile(undefined), WHISPER_PROFILES.balanced);
 
-console.log("12 Whisper profile cases passed");
+// GGML model descriptor assertions
+for (const id of ["fast", "balanced", "accurate"]) {
+  const p = WHISPER_PROFILES[id];
+  assert.match(p.ggml.file, /\.bin$/, `${id} has a ggml file`);
+  assert.ok(p.ggml.sha256 && p.ggml.sha256.length === 64, `${id} has a sha256`);
+}
+
+console.log("18 Whisper profile cases passed");
