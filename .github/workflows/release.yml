@@ -110,6 +110,9 @@ jobs:
       - name: Compress native libraries
         run: npm run pre-release
 
+      - name: Fetch whisper.cpp sidecar binary
+        run: node scripts/fetch-whisper-binaries.cjs
+
       - name: Package ${{ matrix.target }} installer
         shell: pwsh
         run: |

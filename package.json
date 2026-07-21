@@ -20,9 +20,9 @@
         "benchmark:evaluate": "node scripts/evaluate-benchmark.cjs",
         "benchmark:input-helper": "node scripts/benchmark-input-helper.cjs",
         "pre-release": "node scripts/compress-natives.cjs",
-        "release:win": "npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis --publish=never",
-        "release:mac": "npm run build && npm run build:icons && electron-builder --mac --publish=never",
-        "release:linux": "npm run build && npm run build:icons && electron-builder --linux --publish=never",
+        "release:win": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis --publish=never",
+        "release:mac": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:icons && electron-builder --mac --publish=never",
+        "release:linux": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:icons && electron-builder --linux --publish=never",
         "release:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
         "release:dir": "npm run build && npm run build:native && npm run pre-release && electron-builder --dir --win",
         "release:notes": "node scripts/generate-release-notes.cjs",
@@ -132,7 +132,9 @@
                     "from": "native/win32-x64",
                     "to": "native/win32-x64",
                     "filter": [
-                        "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
+                        "FelipeAvinzano.VoiceFlow.PasteHelper.exe",
+                        "whisper-cli.exe",
+                        "*.dll"
                     ]
                 }
             ]
@@ -193,6 +195,16 @@
                 "!.agents{,/**/*}",
                 "!.codex{,/**/*}",
                 "!.impeccable{,/**/*}"
+            ],
+            "extraResources": [
+                {
+                    "from": "native/linux-x64",
+                    "to": "native/linux-x64",
+                    "filter": [
+                        "whisper-cli",
+                        "*.so*"
+                    ]
+                }
             ]
         },
         "nsis": {
