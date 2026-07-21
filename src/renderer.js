@@ -625,12 +625,14 @@ async function processAudio(audio, source = "button", sessionContext = {}) {
     elements.modelBadge.classList.remove("error");
     elements.modelBadge.innerHTML = "<span></span>Preparando motor local";
     const profile = resolveWhisperProfile(settings.whisperProfile);
-    const ipcStartedAt = performance.now();
-    const result = sessionContext.sessionId
-      ? await voiceAPI.transcription.finish(sessionContext.sessionId)
-      : await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
-    const rendererTranscriptionMs = Math.round(performance.now() - ipcStartedAt);
+    // Unified one-shot path: the full recording buffer goes to the engine
+    // dispatcher (whisper.cpp, falling back to transformers.js). The streaming
+    // session was only used to warm the model during capture, so we discard it.
+    if (sessionContext.sessionId) await voiceAPI.transcription.cancel(sessionContext.sessionId).catch(() => {});
     if (sessionContext.sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
+    const ipcStartedAt = performance.now();
+    const result = await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
+    const rendererTranscriptionMs = Math.round(performance.now() - ipcStartedAt);
     const textFinalizeStartedAt = performance.now();
     const rawText = typeof result === "string" ? result : result.text;
     if (!rawText) throw new Error("El motor no devolvió texto.");
