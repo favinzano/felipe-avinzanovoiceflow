@@ -1,6 +1,6 @@
 # felipe avinzano VoiceFlow
 
-> **Excepción temporal para 1.1.13:** el propietario autorizó expresamente el lanzamiento público de esta versión y asumió los requisitos externos todavía pendientes. Esta excepción no equivale a aprobación jurídica y no se aplica a versiones posteriores; consulta `docs/LEGAL_RELEASE_GATE.md`.
+> **Excepción temporal para 1.2.0:** el propietario autorizó expresamente el lanzamiento público de esta versión y asumió los requisitos externos todavía pendientes. Esta excepción no equivale a aprobación jurídica y no se aplica a versiones posteriores; consulta `docs/LEGAL_RELEASE_GATE.md`.
 
 Aplicación de escritorio multiplataforma (Windows, macOS y Linux) para convertir voz en texto con Whisper ejecutado localmente. VoiceFlow no envía el audio ni las transcripciones: no hay cuentas, autenticación, telemetría ni servicios de IA en la nube. La aplicación sí usa red para descargar modelos desde Hugging Face, comprobar actualizaciones en GitHub y abrir soporte cuando el usuario lo solicita.
 
@@ -10,11 +10,11 @@ Los instaladores de cada versión están en [Releases](https://github.com/favinz
 
 | Plataforma | Instalador | Notas |
 |---|---|---|
-| Windows x64 | `felipe-avinzanovoiceflow-Setup-1.1.13-AVX2-x64.exe` | Recomendado en CPUs modernas (2013+). Único con actualización automática. |
-| Windows x64 (Legacy) | `felipe-avinzanovoiceflow-Setup-1.1.13-Legacy-x64.exe` | Para CPUs sin soporte AVX2. Descarga manual, sin auto-actualización. |
-| macOS (Apple Silicon) | `felipe-avinzanovoiceflow-Setup-1.1.13-arm64.dmg` | Build nativo arm64. |
-| macOS (Intel) | `felipe-avinzanovoiceflow-Setup-1.1.13-x64.dmg` | Build nativo x64. |
-| Linux x86_64 | `felipe-avinzanovoiceflow-Setup-1.1.13-x86_64.AppImage` | Ejecutable portable, no requiere instalación. |
+| Windows x64 | `felipe-avinzanovoiceflow-Setup-1.2.0-AVX2-x64.exe` | Recomendado en CPUs modernas (2013+). Único con actualización automática. |
+| Windows x64 (Legacy) | `felipe-avinzanovoiceflow-Setup-1.2.0-Legacy-x64.exe` | Para CPUs sin soporte AVX2. Descarga manual, sin auto-actualización. |
+| macOS (Apple Silicon) | `felipe-avinzanovoiceflow-Setup-1.2.0-arm64.dmg` | Build nativo arm64. |
+| macOS (Intel) | `felipe-avinzanovoiceflow-Setup-1.2.0-x64.dmg` | Build nativo x64. |
+| Linux x86_64 | `felipe-avinzanovoiceflow-Setup-1.2.0-x86_64.AppImage` | Ejecutable portable, no requiere instalación. |
 
 Ninguno de los instaladores tiene firma de código (Windows sin Authenticode, macOS sin notarización de Apple):
 
@@ -56,7 +56,7 @@ Antes de dar por cerrado un cambio, corre `npm test`. Antes de distribuir una be
 
 ## Estado de producción
 
-La versión `1.1.13` es la versión actual para Windows x64. La misma versión de código se empaqueta para macOS y Linux. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
+La versión `1.2.0` es la versión actual para Windows x64. La misma versión de código se empaqueta para macOS y Linux. Consulta `PRODUCTION_READINESS.md` y `docs/RELEASE_CHECKLIST.md` antes de publicar un instalador.
 
 ## Soporte
 

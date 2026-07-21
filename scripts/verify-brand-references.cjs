@@ -9,7 +9,7 @@ const historicalIdentityNote = '> Identidad anterior: NextStepAI Voice. Los nomb
 
 const excludedPaths = /^(?:dist\/|release\/|docs\/superpowers\/|scripts\/verify-brand-references\.cjs$)/;
 const generatedDirectorySegment = /^tools\/[^/]+\/(?:bin|obj)\//;
-const binaryExtensions = /\.(?:bmp|gif|ico|jpe?g|onnx|onnx_data|pdf|png|ttf|woff2?|zip)$/i;
+const binaryExtensions = /\.(?:bmp|flac|gif|ico|jpe?g|mp3|ogg|onnx|onnx_data|pdf|png|ttf|wav|woff2?|zip)$/i;
 const legacyReference = /next[\s._-]*step[\s._-]*ai/i;
 
 const historicalAllowlist = {

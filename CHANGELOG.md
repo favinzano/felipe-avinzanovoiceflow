@@ -8,6 +8,17 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.2.0] - 2026-07-21
+
+### Añadido
+
+- Nuevo motor de transcripción **whisper.cpp** (CPU) como motor local por defecto: ejecuta Whisper Large v3 Turbo mediante un binario nativo (sidecar) en lugar de transformers.js/onnxruntime, con una mejora sustancial de velocidad manteniendo el 100% local. El binario oficial de `ggml-org/whisper.cpp` se descarga y verifica por SHA-256 en build (Windows y Linux); los modelos GGML se descargan bajo demanda y se cachean localmente.
+- Migración única que activa whisper.cpp para los usuarios existentes.
+
+### Cambiado
+
+- El motor transformers.js/onnxruntime pasa a ser un respaldo automático: si el binario de whisper.cpp no está presente o falla al iniciar, la transcripción recae en él de forma transparente. En macOS se usa el respaldo (sin binario propio en esta versión).
+
 ## [1.1.13] - 2026-07-20
 
 ### Corregido

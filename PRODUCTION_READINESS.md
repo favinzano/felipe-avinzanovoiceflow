@@ -1,6 +1,6 @@
 # Preparación Para Producción
 
-Estado actual: versión `1.1.13` técnicamente empaquetable para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. El propietario autorizó una excepción temporal para su distribución externa mediante `docs/LEGAL_RELEASE_GATE.md`. Los instaladores carecen de firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver el riesgo correspondiente más abajo.
+Estado actual: versión `1.2.0` técnicamente empaquetable para Windows x64, macOS (Apple Silicon e Intel) y Linux x86_64. El propietario autorizó una excepción temporal para su distribución externa mediante `docs/LEGAL_RELEASE_GATE.md`. Los instaladores carecen de firma de código (Windows sin Authenticode, macOS sin notarización de Apple); ver el riesgo correspondiente más abajo.
 
 ## Verificado
 
