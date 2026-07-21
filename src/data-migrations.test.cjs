@@ -8,7 +8,9 @@ const {
   PRODUCTION_PROFILE_MARKER,
   revertExperimentalDmlDefault,
   upgradeAccuracyDefault,
-  upgradePerfDefault
+  upgradePerfDefault,
+  upgradeWhisperCppDefault,
+  WHISPERCPP_DEFAULT_MARKER
 } = require("./data-migrations.cjs");
 
 function createStorage(values = {}) {
@@ -109,4 +111,27 @@ const revertMarked = createStorage({ [CPU_REVERT_MARKER]: "initialized" });
 const manualDmlKept = revertExperimentalDmlDefault(revertMarked, { inferenceDevice: "dml" });
 assert.equal(manualDmlKept.inferenceDevice, "dml");
 
-console.log("Data migrations: 31 checks passed.");
+// upgradeWhisperCppDefault: one-time nudge onto whisper.cpp for users still on
+// the old transformers-js default (or unset); a manual/already-migrated
+// whisper-cpp choice is left alone, and the migration only runs once.
+const wcTransformersUser = createStorage({});
+const wcMigrated = upgradeWhisperCppDefault(wcTransformersUser, { transcriptionEngine: "transformers-js" });
+assert.equal(wcMigrated.transcriptionEngine, "whisper-cpp");
+assert.equal(wcTransformersUser.getItem(WHISPERCPP_DEFAULT_MARKER), "initialized");
+
+const wcEmptySettings = createStorage({});
+const wcFromEmpty = upgradeWhisperCppDefault(wcEmptySettings, {});
+assert.equal(wcFromEmpty.transcriptionEngine, "whisper-cpp");
+
+const wcAlreadyMarked = createStorage({ [WHISPERCPP_DEFAULT_MARKER]: "initialized" });
+const wcNotReapplied = upgradeWhisperCppDefault(wcAlreadyMarked, { transcriptionEngine: "transformers-js" });
+assert.equal(wcNotReapplied.transcriptionEngine, "transformers-js");
+
+// Idempotent-safe: a user already on whisper-cpp with no marker yet stays on
+// whisper-cpp and gets the marker set (no throw, no unexpected downgrade).
+const wcAlreadyOnDefault = createStorage({});
+const wcStaysOnDefault = upgradeWhisperCppDefault(wcAlreadyOnDefault, { transcriptionEngine: "whisper-cpp" });
+assert.equal(wcStaysOnDefault.transcriptionEngine, "whisper-cpp");
+assert.equal(wcAlreadyOnDefault.getItem(WHISPERCPP_DEFAULT_MARKER), "initialized");
+
+console.log("Data migrations: 37 checks passed.");

@@ -4,7 +4,7 @@ const { cleanTranscription } = require("./text-cleanup.cjs");
 const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
 const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault, revertExperimentalDmlDefault } = require("./data-migrations.cjs");
+const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault, revertExperimentalDmlDefault, upgradeWhisperCppDefault } = require("./data-migrations.cjs");
 const { initializeVisualizer } = require("./audio-visualizer.js");
 const { PASTE_FAILURE_REASON } = require("./paste-failure-reason.cjs");
 const { normalizePlatformSettings, resolvePlatformCapabilities } = require("./platform-capabilities.cjs");
@@ -120,7 +120,7 @@ if (!voiceAPI.runtime.preserveLegacyStorage) {
 const defaults = {
   language: "spanish",
   transcriptionMode: "auto",
-  transcriptionEngine: "transformers-js",
+  transcriptionEngine: "whisper-cpp",
   whisperProfile: "balanced",
   inferenceDevice: "cpu",
   deliveryMode: "paste-copy",
@@ -509,7 +509,8 @@ async function beginRecording(source = "button") {
     const session = await voiceAPI.transcription.start({
       language: settings.language,
       mode: settings.transcriptionMode,
-      engine: settings.transcriptionMode === "auto" ? "auto" : settings.transcriptionEngine,
+      // warm-up session is transformers.js-only; the real engine is chosen in transcription:run
+      engine: "auto",
       profileId: profile.id,
       device: settings.inferenceDevice,
       sampleRate: audioContext.sampleRate
@@ -828,7 +829,7 @@ async function hydrateSettings() {
   const profile = resolveWhisperProfile(settings.whisperProfile);
   elements.language.value = settings.language;
   elements.transcriptionMode.value = settings.transcriptionMode === "advanced" ? "advanced" : "auto";
-  elements.transcriptionEngine.value = "transformers-js";
+  elements.transcriptionEngine.value = settings.transcriptionEngine;
   elements.whisperProfile.value = profile.id;
   elements.inferenceDevice.value = settings.inferenceDevice;
   syncAdvancedTranscriptionControls();
@@ -1153,6 +1154,7 @@ async function initializeApp() {
   const persisted = await voiceAPI.getState();
   let migratedSettings = upgradePerfDefault(localStorage, persisted.settings);
   migratedSettings = revertExperimentalDmlDefault(localStorage, migratedSettings);
+  migratedSettings = upgradeWhisperCppDefault(localStorage, migratedSettings);
   const perfDefaultsApplied = migratedSettings !== persisted.settings;
   persisted.settings = migratedSettings;
   settings = { ...defaults, ...persisted.settings };

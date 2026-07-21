@@ -2,6 +2,7 @@ const PRODUCTION_PROFILE_MARKER = "voice-production-profile-v1";
 const ACCURACY_DEFAULT_MARKER = "voice-accuracy-default-v2";
 const PERF_DEFAULT_MARKER = "voice-perf-default-v1";
 const CPU_REVERT_MARKER = "voice-cpu-revert-v1";
+const WHISPERCPP_DEFAULT_MARKER = "voice-whispercpp-default-v1";
 const LEGACY_STORAGE_KEYS = Object.freeze(["voice-settings", "voice-history", "voice-dictionary", "voice-microphone"]);
 
 function clearMigratedLegacyStorage(storage, preserveLegacyStorage) {
@@ -63,6 +64,19 @@ function revertExperimentalDmlDefault(storage, settings = {}) {
   return settings;
 }
 
+// One-time migration that switches the default transcription engine from
+// transformers.js to whisper.cpp. Runs after revertExperimentalDmlDefault in
+// the settings pipeline. Only nudges users still on the old default (or
+// unset); a manual, already-migrated, or otherwise explicit choice is left
+// untouched.
+function upgradeWhisperCppDefault(storage, settings = {}) {
+  if (storage.getItem(WHISPERCPP_DEFAULT_MARKER)) return settings;
+  storage.setItem(WHISPERCPP_DEFAULT_MARKER, "initialized");
+  const engineUntouched = !settings.transcriptionEngine || settings.transcriptionEngine === "transformers-js";
+  if (!engineUntouched) return settings;
+  return { ...settings, transcriptionEngine: "whisper-cpp" };
+}
+
 module.exports = {
   ACCURACY_DEFAULT_MARKER,
   clearMigratedLegacyStorage,
@@ -72,5 +86,7 @@ module.exports = {
   PRODUCTION_PROFILE_MARKER,
   revertExperimentalDmlDefault,
   upgradeAccuracyDefault,
-  upgradePerfDefault
+  upgradePerfDefault,
+  upgradeWhisperCppDefault,
+  WHISPERCPP_DEFAULT_MARKER
 };
