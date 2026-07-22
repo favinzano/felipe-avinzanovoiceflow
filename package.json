@@ -12,17 +12,17 @@
         "build:icons": "node scripts/build-icons.cjs",
         "start": "electron .",
         "dev": "npm run build && electron .",
-        "test": "npm run build && node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node scripts/verify-legal-compliance.cjs && node scripts/verify-acceptance.test.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/benchmark-gates.test.cjs && node src/platform-capabilities.test.cjs && node src/auto-start.test.cjs && node src/transcription-metrics.test.cjs && node src/transcription-service.test.cjs && node src/native-transcription-host.test.cjs && node src/model-pack-manager.test.cjs && node src/history-write-queue.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/personal-data.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node src/paste-permission-notice.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs && node src/wav-encode.test.cjs && node src/whisper-cpp-output.test.cjs && node src/ggml-model-manager.test.cjs && node src/whisper-cpp-service.test.cjs && node src/transcription-engine.test.cjs",
-        "test:production": "node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node scripts/verify-legal-compliance.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/benchmark-gates.test.cjs && node src/platform-capabilities.test.cjs && node src/auto-start.test.cjs && node src/transcription-metrics.test.cjs && node src/transcription-service.test.cjs && node src/native-transcription-host.test.cjs && node src/model-pack-manager.test.cjs && node src/history-write-queue.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/personal-data.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node src/paste-permission-notice.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs && node src/transcription-smoke.test.cjs && node src/wav-encode.test.cjs && node src/whisper-cpp-output.test.cjs && node src/ggml-model-manager.test.cjs && node src/whisper-cpp-service.test.cjs && node src/transcription-engine.test.cjs && node src/whisper-cpp-smoke.test.cjs",
+        "test": "npm run build && node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node scripts/verify-legal-compliance.cjs && node scripts/verify-acceptance.test.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/benchmark-gates.test.cjs && node src/platform-capabilities.test.cjs && node src/auto-start.test.cjs && node src/transcription-metrics.test.cjs && node src/transcription-service.test.cjs && node src/native-transcription-host.test.cjs && node src/model-pack-manager.test.cjs && node src/history-write-queue.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/personal-data.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node src/paste-permission-notice.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs",
+        "test:production": "node scripts/verify-brand-references.test.cjs && node scripts/verify-brand-references.cjs && node scripts/release-brand.test.cjs && node scripts/verify-legal-compliance.cjs && node --check src/main.cjs && node --check src/preload.cjs && node --check src/overlay-preload.cjs && node --check src/db.cjs && node --check src/pcm-capture-worklet.js && node src/brand-config.test.cjs && node src/brand-migration.test.cjs && node src/brand-session-path.test.cjs && node src/brand-surfaces.test.cjs && node src/text-cleanup.test.cjs && node src/audio-quality.test.cjs && node src/voice-activity.test.cjs && node src/benchmark-utils.test.cjs && node src/benchmark-gates.test.cjs && node src/platform-capabilities.test.cjs && node src/auto-start.test.cjs && node src/transcription-metrics.test.cjs && node src/transcription-service.test.cjs && node src/native-transcription-host.test.cjs && node src/model-pack-manager.test.cjs && node src/history-write-queue.test.cjs && node src/whisper-profiles.test.cjs && node src/model-storage.test.cjs && node src/local-state.test.cjs && node src/app-preferences.test.cjs && node src/personal-data.test.cjs && node src/data-migrations.test.cjs && node src/input-helper.test.cjs && node src/paste-permission-notice.test.cjs && node scripts/run-with-electron-node.cjs src/db.test.cjs && node src/transcription-smoke.test.cjs",
         "test:models": "node src/whisper-models.smoke.cjs",
         "test:onnx-runtime": "node scripts/smoke-onnx-runtime.cjs",
         "benchmark:models": "node scripts/benchmark-models.cjs",
         "benchmark:evaluate": "node scripts/evaluate-benchmark.cjs",
         "benchmark:input-helper": "node scripts/benchmark-input-helper.cjs",
         "pre-release": "node scripts/compress-natives.cjs",
-        "release:win": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis --publish=never",
-        "release:mac": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:icons && electron-builder --mac --publish=never",
-        "release:linux": "node scripts/fetch-whisper-binaries.cjs && npm run build && npm run build:icons && electron-builder --linux --publish=never",
+        "release:win": "npm run build && npm run build:native && npm run build:icons && npm run pre-release && electron-builder --win nsis --publish=never",
+        "release:mac": "npm run build && npm run build:icons && electron-builder --mac --publish=never",
+        "release:linux": "npm run build && npm run build:icons && electron-builder --linux --publish=never",
         "release:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release-signed.ps1",
         "release:dir": "npm run build && npm run build:native && npm run pre-release && electron-builder --dir --win",
         "release:notes": "node scripts/generate-release-notes.cjs",
@@ -132,9 +132,7 @@
                     "from": "native/win32-x64",
                     "to": "native/win32-x64",
                     "filter": [
-                        "FelipeAvinzano.VoiceFlow.PasteHelper.exe",
-                        "whisper-cli.exe",
-                        "*.dll"
+                        "FelipeAvinzano.VoiceFlow.PasteHelper.exe"
                     ]
                 }
             ]
@@ -195,16 +193,6 @@
                 "!.agents{,/**/*}",
                 "!.codex{,/**/*}",
                 "!.impeccable{,/**/*}"
-            ],
-            "extraResources": [
-                {
-                    "from": "native/linux-x64",
-                    "to": "native/linux-x64",
-                    "filter": [
-                        "whisper-cli",
-                        "*.so*"
-                    ]
-                }
             ]
         },
         "nsis": {

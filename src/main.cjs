@@ -33,8 +33,6 @@ const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
 const { loadModelWithRetry } = require("./model-recovery.cjs");
 const { createTranscriptionMetricsStore } = require("./transcription-metrics.cjs");
 const { createTranscriptionService } = require("./transcription-service.cjs");
-const { createWhisperCppService } = require("./whisper-cpp-service.cjs");
-const { createTranscriptionEngine } = require("./transcription-engine.cjs");
 const { createModelPackManager } = require("./model-pack-manager.cjs");
 const { createHistoryWriteQueue } = require("./history-write-queue.cjs");
 const { migrateLegacyState, readState, STATE_SCHEMA_VERSION, statePath, writeState } = require("./local-state.cjs");
@@ -59,7 +57,6 @@ const {
 let mainWindow;
 let overlayWindow;
 let transcriptionService;
-let transcriptionEngine;
 let transcriptionMetricsStore;
 let modelPackManager;
 let historyWriteQueue;
@@ -1012,25 +1009,6 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send("model:progress", progress);
     }
   });
-  // whisper.cpp is the preferred engine; it self-selects only when its bundled
-  // binary is present (Task 9). Until then isAvailable() is false and the
-  // dispatcher transparently falls back to the transformers.js service, so the
-  // app behaves exactly as before on machines without the sidecar binary.
-  const whisperBinaryName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
-  const whisperBinaryPath = app.isPackaged
-    ? path.join(process.resourcesPath, "native", `${process.platform}-${process.arch}`, whisperBinaryName)
-    : path.join(__dirname, "..", "native", `${process.platform}-${process.arch}`, whisperBinaryName);
-  const whisperCppService = createWhisperCppService({
-    binaryPath: whisperBinaryPath,
-    modelsDir: path.join(activeUserDataPath, "models", "ggml")
-  });
-  transcriptionEngine = createTranscriptionEngine({
-    whisperCpp: whisperCppService,
-    fallback: {
-      transcribe: (audio, language, profile, device) =>
-        transcriptionService.transcribe(audio, language, profile.id, device)
-    }
-  });
   if (process.platform === "win32") inputStrategy.warm?.();
 
   try {
@@ -1225,8 +1203,7 @@ ipcMain.handle("transcription:run", async (_event, audio, language, profileId, d
   if (!isolatedTestMode && !hasAcceptedCurrentTerms(activeUserDataPath)) {
     throw new Error("Current Terms have not been accepted.");
   }
-  const profile = resolveWhisperProfile(profileId);
-  return transcriptionEngine.transcribe(audio, language, profile, device);
+  return transcriptionService.transcribe(audio, language, profileId, device);
 });
 
 ipcMain.handle("transcription:start", (_event, configuration) => {

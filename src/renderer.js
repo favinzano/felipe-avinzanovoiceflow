@@ -4,7 +4,7 @@ const { cleanTranscription } = require("./text-cleanup.cjs");
 const { resampleAudio, trimEdgeSilence } = require("./audio-quality.cjs");
 const { createVoiceActivityDetector } = require("./voice-activity.cjs");
 const { resolveWhisperProfile } = require("./whisper-profiles.cjs");
-const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault, revertExperimentalDmlDefault, upgradeWhisperCppDefault } = require("./data-migrations.cjs");
+const { clearMigratedLegacyStorage, initializeProductionProfile, upgradeAccuracyDefault, upgradePerfDefault, revertExperimentalDmlDefault, revertWhisperCppEngine } = require("./data-migrations.cjs");
 const { initializeVisualizer } = require("./audio-visualizer.js");
 const { PASTE_FAILURE_REASON } = require("./paste-failure-reason.cjs");
 const { normalizePlatformSettings, resolvePlatformCapabilities } = require("./platform-capabilities.cjs");
@@ -120,7 +120,7 @@ if (!voiceAPI.runtime.preserveLegacyStorage) {
 const defaults = {
   language: "spanish",
   transcriptionMode: "auto",
-  transcriptionEngine: "whisper-cpp",
+  transcriptionEngine: "transformers-js",
   whisperProfile: "balanced",
   inferenceDevice: "cpu",
   deliveryMode: "paste-copy",
@@ -509,8 +509,7 @@ async function beginRecording(source = "button") {
     const session = await voiceAPI.transcription.start({
       language: settings.language,
       mode: settings.transcriptionMode,
-      // warm-up session is transformers.js-only; the real engine is chosen in transcription:run
-      engine: "auto",
+      engine: settings.transcriptionMode === "auto" ? "auto" : settings.transcriptionEngine,
       profileId: profile.id,
       device: settings.inferenceDevice,
       sampleRate: audioContext.sampleRate
@@ -626,14 +625,12 @@ async function processAudio(audio, source = "button", sessionContext = {}) {
     elements.modelBadge.classList.remove("error");
     elements.modelBadge.innerHTML = "<span></span>Preparando motor local";
     const profile = resolveWhisperProfile(settings.whisperProfile);
-    // Unified one-shot path: the full recording buffer goes to the engine
-    // dispatcher (whisper.cpp, falling back to transformers.js). The streaming
-    // session was only used to warm the model during capture, so we discard it.
-    if (sessionContext.sessionId) await voiceAPI.transcription.cancel(sessionContext.sessionId).catch(() => {});
-    if (sessionContext.sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     const ipcStartedAt = performance.now();
-    const result = await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
+    const result = sessionContext.sessionId
+      ? await voiceAPI.transcription.finish(sessionContext.sessionId)
+      : await voiceAPI.transcribe(audio, settings.language, profile.id, settings.inferenceDevice);
     const rendererTranscriptionMs = Math.round(performance.now() - ipcStartedAt);
+    if (sessionContext.sessionId === transcriptionSessionId) transcriptionSessionId = undefined;
     const textFinalizeStartedAt = performance.now();
     const rawText = typeof result === "string" ? result : result.text;
     if (!rawText) throw new Error("El motor no devolvió texto.");
@@ -1154,7 +1151,7 @@ async function initializeApp() {
   const persisted = await voiceAPI.getState();
   let migratedSettings = upgradePerfDefault(localStorage, persisted.settings);
   migratedSettings = revertExperimentalDmlDefault(localStorage, migratedSettings);
-  migratedSettings = upgradeWhisperCppDefault(localStorage, migratedSettings);
+  migratedSettings = revertWhisperCppEngine(localStorage, migratedSettings);
   const perfDefaultsApplied = migratedSettings !== persisted.settings;
   persisted.settings = migratedSettings;
   settings = { ...defaults, ...persisted.settings };

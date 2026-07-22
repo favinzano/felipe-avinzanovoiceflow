@@ -218,8 +218,7 @@ assert.match(overlayRenderer, /const overlayFallbackAPI\s*=\s*Object\.freeze\(\{
 }
 
 assert.equal(brand.displayName, "felipe avinzano VoiceFlow");
-assert.ok(packageJson.build.win.extraResources[0].filter.includes(brand.helperExecutable), "packaging includes the canonical native helper");
-assert.ok(packageJson.build.win.extraResources[0].filter.includes("whisper-cli.exe"), "packaging includes the whisper.cpp sidecar binary");
+assert.deepEqual(packageJson.build.win.extraResources[0].filter, [brand.helperExecutable], "packaging includes exactly the canonical native helper");
 assert.ok(!packageJson.build.win.extraResources[0].filter.includes("NextStepAI.PasteHelper.exe"), "packaging excludes the legacy native helper");
 
 assert.ok(fs.existsSync(helperProjectPath), "the approved native helper project exists");
