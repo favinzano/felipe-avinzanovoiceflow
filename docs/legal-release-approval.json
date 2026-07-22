@@ -1,6 +1,6 @@
 {
   "status": "owner_override",
-  "appVersion": "1.1.13",
+  "appVersion": "1.2.0",
   "termsVersion": "2026-07-17-beta-1",
   "legalEmail": "legal@felipeavinzano.com",
   "legalEmailCheck": {
@@ -32,9 +32,9 @@
   },
   "ownerOverride": {
     "authorizedBy": "Felipe Avinzano",
-    "authorizedAt": "2026-07-20T22:15:31.170Z",
-    "scopeVersion": "1.1.13",
-    "reason": "El propietario autoriza publicar 1.1.13 (revierte el default DirectML que corrompía transcripciones; vuelve a CPU estable) como latest y asume la responsabilidad por los requisitos externos aún pendientes.",
+    "authorizedAt": "2026-07-22T02:22:33.512Z",
+    "scopeVersion": "1.2.0",
+    "reason": "El propietario autoriza publicar 1.2.0 (nuevo motor local whisper.cpp por defecto con respaldo transformers.js) como latest y asume la responsabilidad por los requisitos externos aún pendientes.",
     "acknowledgesIncompleteLegalReview": true,
     "acknowledgesUnverifiedOperationalRequirements": true,
     "acknowledgesUnsignedArtifacts": true,
