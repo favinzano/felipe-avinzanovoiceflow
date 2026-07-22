@@ -8,6 +8,16 @@
 
 Todos los cambios relevantes de felipe avinzano VoiceFlow se documentan en este archivo.
 
+## [1.2.1] - 2026-07-22
+
+### Corregido
+
+- Corregida la regresión de velocidad de 1.2.0: el motor whisper.cpp resultó más lento en CPU que el motor residente transformers.js/onnxruntime, porque recargaba el modelo en cada dictado mientras onnxruntime lo mantiene en memoria. Se retira whisper.cpp y el motor local vuelve a transformers.js. Una migración única devuelve a los usuarios al motor anterior.
+
+### Cambiado
+
+- El perfil por defecto ("Balanceado") ahora usa **Whisper Small** en lugar de Large v3 Turbo: mucho más rápido en CPU (~3.6s en caliente vs ~11s) manteniendo buena calidad y 100% local. "Rápido" sigue en Whisper Base y "Máxima precisión" en Large v3 Turbo.
+
 ## [1.2.0] - 2026-07-21
 
 ### Añadido
